@@ -1,0 +1,129 @@
+
+import unittest
+
+from core.context_manager import ContextManager
+
+
+class TestContextManager(unittest.TestCase):
+    def setUp(self):
+        self.manager = ContextManager(
+            context_limit=100,
+            reserved_tokens=20,
+            chars_per_token=1,
+        )
+
+    def test_initial_budget(self):
+        self.assertEqual(self.manager.message_budget, 80)
+
+    def test_estimate_tokens(self):
+        messages = [
+            {"role": "user", "content": "Hello"}
+        ]
+
+        self.assertEqual(
+            self.manager.estimate_tokens(messages),
+            5,
+        )
+
+    def test_build_context_keeps_recent_messages(self):
+        history = [
+            {"role": "user", "content": "Old"},
+            {"role": "assistant", "content": "Old reply"},
+            {"role": "user", "content": "New"},
+        ]
+
+        result = self.manager.build_context(history)
+
+        self.assertEqual(result, history)
+
+    def test_old_messages_are_removed(self):
+        history = [
+            {"role": "user", "content": "A" * 40},
+            {"role": "assistant", "content": "B" * 60},
+            {"role": "user", "content": "C" * 30},
+        ]
+
+        result = self.manager.build_context(history)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["content"], "C" * 30)
+
+    def test_newest_oversized_message_is_preserved(self):
+        history = [
+            {"role": "user", "content": "X" * 100}
+        ]
+
+        result = self.manager.build_context(history)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["content"], "X" * 100)
+
+    def test_original_history_is_not_modified(self):
+        history = [
+            {"role": "user", "content": "Hello"}
+        ]
+
+        original = [message.copy() for message in history]
+
+        self.manager.build_context(history)
+
+        self.assertEqual(history, original)
+
+    def test_invalid_roles_are_ignored(self):
+        history = [
+            {"role": "system", "content": "System prompt"},
+            {"role": "user", "content": "Hello"},
+        ]
+
+        result = self.manager.build_context(history)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["role"], "user")
+
+    def test_invalid_messages_are_ignored(self):
+        history = [
+            "invalid",
+            {"role": "user", "content": 123},
+            {"role": "assistant", "content": "Valid"},
+        ]
+
+        result = self.manager.build_context(history)
+
+        self.assertEqual(
+            result,
+            [{"role": "assistant", "content": "Valid"}],
+        )
+
+    def test_non_list_history(self):
+        with self.assertRaises(ValueError):
+            self.manager.build_context("invalid")
+
+    def test_invalid_context_limit(self):
+        with self.assertRaises(ValueError):
+            ContextManager(context_limit=0)
+
+    def test_invalid_reserved_tokens(self):
+        with self.assertRaises(ValueError):
+            ContextManager(
+                context_limit=100,
+                reserved_tokens=100,
+            )
+
+    def test_invalid_chars_per_token(self):
+        with self.assertRaises(ValueError):
+            ContextManager(chars_per_token=0)
+
+    def test_context_usage(self):
+        messages = [
+            {"role": "user", "content": "Hello"}
+        ]
+
+        usage = self.manager.get_context_usage(messages)
+
+        self.assertEqual(usage["estimated_tokens"], 5)
+        self.assertEqual(usage["message_budget"], 80)
+        self.assertEqual(usage["remaining_budget"], 75)
+
+
+if __name__ == "__main__":
+    unittest.main()
