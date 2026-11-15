@@ -94,9 +94,29 @@ class OllamaClient:
         if CONFIG.num_predict is not None:
             options["num_predict"] = CONFIG.num_predict
 
+        payload_messages = list(messages)
+
+        if CONFIG.system_prompt and (
+            payload_messages[0].get("role") != "system"
+        ):
+            payload_messages.insert(0, {
+                "role": "system",
+                "content": CONFIG.system_prompt,
+            })
+
+        if CONFIG.style_reminder:
+            last = payload_messages[-1]
+
+            if last.get("role") == "user":
+                last = dict(last)
+                last["content"] = (
+                    last["content"] + "\n\n" + CONFIG.style_reminder
+                )
+                payload_messages[-1] = last
+
         return {
             "model": self.model,
-            "messages": messages,
+            "messages": payload_messages,
             "stream": stream,
             "think": CONFIG.think,
             "keep_alive": CONFIG.keep_alive,

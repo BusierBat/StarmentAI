@@ -10,6 +10,28 @@ from dataclasses import dataclass
 from typing import Final
 
 
+def _load_system_prompt(path: str) -> str:
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError:
+        return ""
+
+    marker = 'SYSTEM """'
+    start = text.find(marker)
+
+    if start == -1:
+        return ""
+
+    start += len(marker)
+    end = text.find('"""', start)
+
+    if end == -1:
+        return ""
+
+    return text[start:end].strip()
+
+
 @dataclass(frozen=True, slots=True)
 class AppConfig:
     """Application configuration."""
@@ -31,8 +53,16 @@ class AppConfig:
     num_ctx: int = 2048
     num_thread: int = 4
     num_predict: int | None = 512
-    system_prompt_tokens: int = 576
+    system_prompt_tokens: int = 640
     think: bool = False
+
+    system_prompt: str = ""
+    style_reminder: str = (
+        "Nhắc lại: giữ đúng giọng điệu và quy tắc của StarmentAI "
+        "đã nêu ở đầu hội thoại. Trả lời đúng câu hỏi cuối cùng, "
+        "bám sát thông tin đã có trong hội thoại, không đổi chủ đề, "
+        "dùng đúng ngôn ngữ của người dùng."
+    )
 
     # Model memory management
     keep_alive: str = "5m"
@@ -147,6 +177,15 @@ class AppConfig:
                 "STARMENTAI_SYSTEM_PROMPT_TOKENS",
                 defaults.system_prompt_tokens
             )),
+
+            system_prompt=_load_system_prompt(
+                os.getenv("STARMENTAI_MODELFILE", "Modelfile")
+            ),
+
+            style_reminder=os.getenv(
+                "STARMENTAI_STYLE_REMINDER",
+                defaults.style_reminder
+            ),
 
             think=os.getenv(
                 "OLLAMA_THINK",

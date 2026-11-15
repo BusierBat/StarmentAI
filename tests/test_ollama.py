@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 import requests
 
+from config import CONFIG, _load_system_prompt
 from core.ollama_client import (
     OllamaClient,
     OllamaConnectionError,
@@ -191,6 +192,8 @@ class TestOllamaClient(unittest.TestCase):
                 num_predict=512,
                 think=False,
                 keep_alive="5m",
+                system_prompt="",
+                style_reminder="",
             ),
         ):
             client = OllamaClient()
@@ -202,6 +205,119 @@ class TestOllamaClient(unittest.TestCase):
         self.assertEqual(payload["options"]["num_predict"], 512)
 
         client.close()
+
+    def test_payload_prepends_system_and_appends_reminder(self):
+        with patch(
+            "core.ollama_client.CONFIG",
+            SimpleNamespace(
+                chat_url="http://localhost:11434/api/chat",
+                model_name="starmentai",
+                temperature=0.7,
+                top_p=0.9,
+                num_ctx=2048,
+                num_thread=4,
+                num_predict=512,
+                think=False,
+                keep_alive="5m",
+                system_prompt="Bạn là StarmentAI.",
+                style_reminder="Nhắc lại: giữ giọng điệu.",
+            ),
+        ):
+            client = OllamaClient()
+
+            payload = client._build_payload([
+                {"role": "user", "content": "Hello"}
+            ])
+
+        roles = [m["role"] for m in payload["messages"]]
+
+        self.assertEqual(roles, ["system", "user"])
+        self.assertEqual(
+            payload["messages"][0]["content"],
+            "Bạn là StarmentAI.",
+        )
+        self.assertTrue(
+            payload["messages"][-1]["content"].endswith(
+                "\n\nNhắc lại: giữ giọng điệu."
+            )
+        )
+
+        client.close()
+
+    def test_payload_keeps_existing_system_message(self):
+        with patch(
+            "core.ollama_client.CONFIG",
+            SimpleNamespace(
+                chat_url="http://localhost:11434/api/chat",
+                model_name="starmentai",
+                temperature=0.7,
+                top_p=0.9,
+                num_ctx=2048,
+                num_thread=4,
+                num_predict=512,
+                think=False,
+                keep_alive="5m",
+                system_prompt="Bạn là StarmentAI.",
+                style_reminder="Nhắc lại: giữ giọng điệu.",
+            ),
+        ):
+            client = OllamaClient()
+
+            payload = client._build_payload([
+                {"role": "system", "content": "Tùy chỉnh."},
+                {"role": "user", "content": "Hello"},
+            ])
+
+        self.assertEqual(
+            payload["messages"][0]["content"],
+            "Tùy chỉnh.",
+        )
+        self.assertEqual(len(payload["messages"]), 2)
+
+        client.close()
+
+    def test_payload_skips_prompt_extras_when_unconfigured(self):
+        with patch(
+            "core.ollama_client.CONFIG",
+            SimpleNamespace(
+                chat_url="http://localhost:11434/api/chat",
+                model_name="starmentai",
+                temperature=0.7,
+                top_p=0.9,
+                num_ctx=2048,
+                num_thread=4,
+                num_predict=512,
+                think=False,
+                keep_alive="5m",
+                system_prompt="",
+                style_reminder="",
+            ),
+        ):
+            client = OllamaClient()
+
+            payload = client._build_payload([
+                {"role": "user", "content": "Hello"}
+            ])
+
+        self.assertEqual(len(payload["messages"]), 1)
+        self.assertEqual(
+            payload["messages"][0]["content"],
+            "Hello",
+        )
+
+        client.close()
+
+
+class TestSystemPromptConfig(unittest.TestCase):
+    def test_config_parses_system_prompt_from_modelfile(self):
+        self.assertIn("StarmentAI", CONFIG.system_prompt)
+        self.assertIn("GIỌNG ĐIỆU", CONFIG.system_prompt)
+
+    def test_load_system_prompt_missing_file_returns_empty(self):
+        self.assertEqual(
+            _load_system_prompt("khong-ton-tai.modelfile"),
+            "",
+        )
 
 
 if __name__ == "__main__":
