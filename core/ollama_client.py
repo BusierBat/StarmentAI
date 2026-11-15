@@ -1,10 +1,14 @@
 
 """
 StarmentAI - Ollama Client
-Handles communication with the local Ollama API.
+Optimized communication with the local Ollama API.
 """
 
+import json
 import threading
+import time
+
+from typing import Any, Iterator
 
 import requests
 
@@ -16,53 +20,74 @@ class OllamaError(Exception):
 
 
 class OllamaConnectionError(OllamaError):
-    """Ollama connection or timeout error."""
+    """Connection or timeout error."""
 
 
 class OllamaResponseError(OllamaError):
-    """Invalid response from Ollama."""
+    """Invalid Ollama response."""
 
 
 class OllamaClient:
-    def __init__(self):
+    """Thread-safe Ollama API client."""
+
+    MAX_RETRIES = 2
+    RETRY_DELAY = 1.0
+
+    VALID_ROLES = {"system", "user", "assistant"}
+
+    def __init__(self) -> None:
         self.url = CONFIG.chat_url
         self.model = CONFIG.model_name
 
         self.session = requests.Session()
+        self._lock = threading.Lock()
+        self._closed = False
 
-        # Prevent multiple simultaneous requests.
-        self._request_lock = threading.Lock()
+    # ---------------- VALIDATION ----------------
 
-    def chat(self, messages: list[dict]) -> str:
+    @classmethod
+    def _validate_messages(
+        cls,
+        messages: list[dict[str, Any]],
+    ) -> None:
         if not isinstance(messages, list) or not messages:
-            raise ValueError(
-                "messages must be a non-empty list"
-            )
+            raise ValueError("Messages must be a non-empty list.")
 
-        for message in messages:
+        for index, message in enumerate(messages):
             if not isinstance(message, dict):
                 raise ValueError(
-                    "Every message must be a dictionary"
+                    f"Message {index} must be a dictionary."
                 )
 
-            if message.get("role") not in (
-                "system",
-                "user",
-                "assistant",
-            ):
+            if message.get("role") not in cls.VALID_ROLES:
                 raise ValueError(
-                    "Invalid message role"
+                    f"Invalid role in message {index}."
                 )
 
-            if not isinstance(message.get("content"), str):
+            content = message.get("content")
+
+            if not isinstance(content, str) or not content.strip():
                 raise ValueError(
-                    "Message content must be a string"
+                    f"Invalid content in message {index}."
                 )
 
-        payload = {
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise OllamaConnectionError(
+                "Ollama client is closed."
+            )
+
+    # ---------------- PAYLOAD ----------------
+
+    def _build_payload(
+        self,
+        messages: list[dict[str, Any]],
+        stream: bool = False,
+    ) -> dict[str, Any]:
+        return {
             "model": self.model,
             "messages": messages,
-            "stream": False,
+            "stream": stream,
             "think": CONFIG.think,
             "keep_alive": CONFIG.keep_alive,
             "options": {
@@ -73,78 +98,227 @@ class OllamaClient:
             },
         }
 
+    # ---------------- HTTP REQUEST ----------------
+
+    def _post(
+        self,
+        payload: dict[str, Any],
+        stream: bool = False,
+    ) -> requests.Response:
         timeout = (
             CONFIG.connect_timeout,
             CONFIG.read_timeout,
         )
 
-        try:
-            with self._request_lock:
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
                 response = self.session.post(
                     self.url,
                     json=payload,
                     timeout=timeout,
+                    stream=stream,
                 )
 
-        except requests.exceptions.Timeout as exc:
-            raise OllamaConnectionError(
-                "Ollama request timed out."
-            ) from exc
+                if response.status_code >= 500:
+                    if attempt < self.MAX_RETRIES:
+                        response.close()
+                        time.sleep(
+                            self.RETRY_DELAY * (attempt + 1)
+                        )
+                        continue
 
-        except requests.exceptions.ConnectionError as exc:
-            raise OllamaConnectionError(
-                "Cannot connect to Ollama. "
-                "Check whether Ollama is running."
-            ) from exc
+                if not response.ok:
+                    status = response.status_code
 
-        except requests.exceptions.RequestException as exc:
-            raise OllamaConnectionError(
-                f"Request failed: {exc}"
-            ) from exc
+                    try:
+                        data = response.json()
+                        error = (
+                            data.get("error", response.text)
+                            if isinstance(data, dict)
+                            else response.text
+                        )
+                    except ValueError:
+                        error = response.text
 
-        if response.status_code != 200:
+                    response.close()
+
+                    raise OllamaResponseError(
+                        f"HTTP {status}: {error}"
+                    )
+
+                return response
+
+            except requests.exceptions.Timeout as exc:
+                if attempt == self.MAX_RETRIES:
+                    raise OllamaConnectionError(
+                        "Ollama request timed out."
+                    ) from exc
+
+            except requests.exceptions.ConnectionError as exc:
+                if attempt == self.MAX_RETRIES:
+                    raise OllamaConnectionError(
+                        "Cannot connect to Ollama. "
+                        "Check whether Ollama is running."
+                    ) from exc
+
+            except requests.exceptions.RequestException as exc:
+                raise OllamaConnectionError(
+                    f"Request failed: {exc}"
+                ) from exc
+
+            time.sleep(self.RETRY_DELAY * (attempt + 1))
+
+        raise OllamaConnectionError(
+            "Unable to complete Ollama request."
+        )
+
+    # ---------------- CHAT ----------------
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+    ) -> str:
+        """Generate a complete AI response."""
+
+        self._validate_messages(messages)
+
+        payload = self._build_payload(messages)
+
+        with self._lock:
+            self._ensure_open()
+
             try:
-                error_data = response.json()
-                error_message = error_data.get(
-                    "error",
-                    response.text,
-                )
-            except ValueError:
-                error_message = response.text
+                with self._post(payload) as response:
+                    try:
+                        data = response.json()
+                    except ValueError as exc:
+                        raise OllamaResponseError(
+                            "Invalid JSON response from Ollama."
+                        ) from exc
 
-            raise OllamaResponseError(
-                f"HTTP {response.status_code}: "
-                f"{error_message}"
-            )
+                    if not isinstance(data, dict):
+                        raise OllamaResponseError(
+                            "Invalid response structure."
+                        )
 
-        try:
-            data = response.json()
-        except ValueError as exc:
-            raise OllamaResponseError(
-                "Ollama returned invalid JSON."
-            ) from exc
+                    message = data.get("message")
 
-        message = data.get("message")
+                    if not isinstance(message, dict):
+                        raise OllamaResponseError(
+                            "Missing response message."
+                        )
 
-        if not isinstance(message, dict):
-            raise OllamaResponseError(
-                "Response does not contain a valid message."
-            )
+                    content = message.get("content")
 
-        content = message.get("content")
+                    if not isinstance(content, str):
+                        raise OllamaResponseError(
+                            "Invalid response content."
+                        )
 
-        if not isinstance(content, str):
-            raise OllamaResponseError(
-                "Response content is missing or invalid."
-            )
+                    content = content.strip()
 
-        return content.strip()
+                    if not content:
+                        raise OllamaResponseError(
+                            "Ollama returned an empty response."
+                        )
 
-    def close(self):
-        self.session.close()
+                    return content
 
-    def __enter__(self):
+            except requests.exceptions.RequestException as exc:
+                raise OllamaConnectionError(
+                    f"Failed to read response: {exc}"
+                ) from exc
+
+    # ---------------- STREAMING ----------------
+
+    def stream_chat(
+        self,
+        messages: list[dict[str, Any]],
+    ) -> Iterator[str]:
+        """Generate response chunks using Ollama streaming."""
+
+        self._validate_messages(messages)
+
+        payload = self._build_payload(
+            messages,
+            stream=True,
+        )
+
+        with self._lock:
+            self._ensure_open()
+
+            try:
+                with self._post(
+                    payload,
+                    stream=True,
+                ) as response:
+
+                    for line in response.iter_lines():
+                        if not line:
+                            continue
+
+                        try:
+                            data = json.loads(line)
+                        except (ValueError, TypeError) as exc:
+                            raise OllamaResponseError(
+                                "Invalid streaming JSON."
+                            ) from exc
+
+                        if not isinstance(data, dict):
+                            raise OllamaResponseError(
+                                "Invalid streaming response."
+                            )
+
+                        if data.get("error"):
+                            raise OllamaResponseError(
+                                str(data["error"])
+                            )
+
+                        message = data.get("message", {})
+
+                        if not isinstance(message, dict):
+                            raise OllamaResponseError(
+                                "Invalid streaming message."
+                            )
+
+                        content = message.get("content", "")
+
+                        if not isinstance(content, str):
+                            raise OllamaResponseError(
+                                "Invalid streaming content."
+                            )
+
+                        if content:
+                            yield content
+
+                        if data.get("done") is True:
+                            break
+
+            except requests.exceptions.RequestException as exc:
+                raise OllamaConnectionError(
+                    f"Streaming failed: {exc}"
+                ) from exc
+
+    # ---------------- LIFECYCLE ----------------
+
+    def close(self) -> None:
+        """Close HTTP session safely."""
+
+        with self._lock:
+            if self._closed:
+                return
+
+            self._closed = True
+            self.session.close()
+
+    def __enter__(self) -> "OllamaClient":
+        self._ensure_open()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: Any,
+        exc_value: Any,
+        traceback: Any,
+    ) -> None:
         self.close()

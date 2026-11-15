@@ -4,6 +4,8 @@ StarmentAI - Validator
 Validates and normalizes application input and output.
 """
 
+from typing import Any
+
 from config import CONFIG
 
 
@@ -12,42 +14,72 @@ class ValidationError(Exception):
 
 
 class Validator:
-    ALLOWED_ROLES = {
+    """Centralized validation utilities."""
+
+    ALLOWED_ROLES = frozenset({
         "system",
         "user",
         "assistant",
-    }
+    })
+
+    # --------------------------------------------------
+    # Internal validation
+    # --------------------------------------------------
 
     @staticmethod
-    def validate_user_input(value: str) -> str:
-        """Validate and normalize user input."""
+    def _validate_string(
+        value: Any,
+        field_name: str,
+    ) -> str:
+        """Validate and normalize a string."""
 
         if not isinstance(value, str):
             raise ValidationError(
-                "User input must be a string."
+                f"{field_name} must be a string."
             )
 
         value = value.strip()
 
         if not value:
             raise ValidationError(
-                "User input cannot be empty."
-            )
-
-        if len(value) > CONFIG.max_user_input_length:
-            raise ValidationError(
-                f"Input exceeds the maximum length of "
-                f"{CONFIG.max_user_input_length} characters."
+                f"{field_name} cannot be empty."
             )
 
         return value
 
+    # --------------------------------------------------
+    # User input
+    # --------------------------------------------------
+
+    @staticmethod
+    def validate_user_input(value: str) -> str:
+        """Validate and normalize user input."""
+
+        value = Validator._validate_string(
+            value,
+            "User input",
+        )
+
+        limit = CONFIG.max_user_input_length
+
+        if len(value) > limit:
+            raise ValidationError(
+                f"Input exceeds the maximum length "
+                f"of {limit} characters."
+            )
+
+        return value
+
+    # --------------------------------------------------
+    # Messages
+    # --------------------------------------------------
+
     @classmethod
     def validate_messages(
         cls,
-        messages: list[dict],
+        messages: list[dict[str, Any]],
     ) -> list[dict[str, str]]:
-        """Validate and normalize a message list."""
+        """Validate and normalize conversation messages."""
 
         if not isinstance(messages, list):
             raise ValidationError(
@@ -59,33 +91,26 @@ class Validator:
                 "Messages cannot be empty."
             )
 
-        normalized = []
+        normalized: list[dict[str, str]] = []
 
         for index, message in enumerate(messages):
+
             if not isinstance(message, dict):
                 raise ValidationError(
                     f"Message {index} must be a dictionary."
                 )
 
             role = message.get("role")
-            content = message.get("content")
 
-            if role not in cls.ALLOWED_ROLES:
+            if not isinstance(role, str) or role not in cls.ALLOWED_ROLES:
                 raise ValidationError(
                     f"Message {index} has an invalid role."
                 )
 
-            if not isinstance(content, str):
-                raise ValidationError(
-                    f"Message {index} content must be a string."
-                )
-
-            content = content.strip()
-
-            if not content:
-                raise ValidationError(
-                    f"Message {index} cannot be empty."
-                )
+            content = cls._validate_string(
+                message.get("content"),
+                f"Message {index} content",
+            )
 
             normalized.append({
                 "role": role,
@@ -94,27 +119,26 @@ class Validator:
 
         return normalized
 
+    # --------------------------------------------------
+    # AI response
+    # --------------------------------------------------
+
     @staticmethod
     def validate_response(response: str) -> str:
         """Validate and normalize AI response."""
 
-        if not isinstance(response, str):
-            raise ValidationError(
-                "AI response must be a string."
-            )
+        return Validator._validate_string(
+            response,
+            "AI response",
+        )
 
-        response = response.strip()
-
-        if not response:
-            raise ValidationError(
-                "AI response cannot be empty."
-            )
-
-        return response
+    # --------------------------------------------------
+    # Boolean
+    # --------------------------------------------------
 
     @staticmethod
-    def validate_boolean(value) -> bool:
-        """Ensure a value is a boolean."""
+    def validate_boolean(value: Any) -> bool:
+        """Validate boolean values."""
 
         if not isinstance(value, bool):
             raise ValidationError(
@@ -122,3 +146,27 @@ class Validator:
             )
 
         return value
+
+    # --------------------------------------------------
+    # Numeric
+    # --------------------------------------------------
+
+    @staticmethod
+    def validate_positive_integer(
+        value: Any,
+        field_name: str = "Value",
+    ) -> int:
+        """Validate a positive integer."""
+
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValidationError(
+                f"{field_name} must be an integer."
+            )
+
+        if value <= 0:
+            raise ValidationError(
+                f"{field_name} must be greater than zero."
+            )
+
+        return value
+
