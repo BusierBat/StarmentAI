@@ -50,18 +50,20 @@ class AppConfig:
     # Generation settings
     temperature: float = 0.6
     top_p: float = 0.9
-    num_ctx: int = 2048
+    num_ctx: int = 3072
     num_thread: int = 4
-    num_predict: int | None = 512
-    system_prompt_tokens: int = 672
+    num_predict: int | None = 1024
+    system_prompt_tokens: int = 704
     think: bool = False
     adaptive_think: bool = True
 
     system_prompt: str = ""
     style_reminder: str = (
-        "Nhắc lại quy tắc của StarmentAI: trả lời như chat, "
-        "câu dễ/chào hỏi/toán đơn trả lời ngắn gọn; giọng thẳng, "
-        "sắc, châm biếm thông minh, tiếng lóng tự nhiên khi hợp cảnh, "
+        "Nhắc lại quy tắc của StarmentAI: trả lời như chat; "
+        "chào hỏi, cảm ơn, toán đơn thì ngắn gọn đúng ý; "
+        "câu hỏi có nội dung thì trả lời đủ ý, nêu lý do và "
+        "ví dụ cụ thể, tránh một câu cụt; giọng thẳng, sắc, "
+        "châm biếm thông minh, tiếng lóng tự nhiên khi hợp cảnh, "
         "không công kích cá nhân; chủ đề nhạy cảm thì nghiêm túc; "
         "trả lời đúng câu hỏi vừa đặt, bám sát hội thoại, "
         "không sáo rỗng, không đổi chủ đề; "
