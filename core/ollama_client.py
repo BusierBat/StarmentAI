@@ -5,6 +5,7 @@ Optimized communication with the local Ollama API.
 """
 
 import json
+import re
 import threading
 import time
 
@@ -13,6 +14,59 @@ from typing import Any, Iterator
 import requests
 
 from config import CONFIG
+
+
+HARD_THINKING_PATTERN = re.compile(
+    r"vì sao|tại sao|làm sao|như thế nào|giải thích|phân tích|"
+    r"so sánh|khác nhau|ưu nhược|đánh giá|nghĩ gì|lập kế hoạch|"
+    r"chiến lược|cách xử lý|nghĩa là gì|có nên|nên chọn|"
+    r"\bviết\b|\bcode\b|\blập trình\b|\bthuật toán\b|\bdebug\b|"
+    r"\bhàm\b|\bsql\b|\bpython\b|\bjavascript\b|\bjava\b|\bapi\b|"
+    r"\bwhy\b|\bhow\b|\bexplain\b|\bcompare\b|\bdifference\b|"
+    r"\balgorithm\b"
+)
+
+EASY_THINKING_PATTERN = re.compile(
+    r"^(chào|hello|hi|hey|alo|yo|cảm ơn|thanks|thank you|tạm biệt|"
+    r"bye|ok|okay|ừ|uhm|aha|hehe|haha)\b"
+)
+
+IDENTITY_PATTERN = re.compile(
+    r"là ai|tên gì|giới thiệu bản thân|who are you"
+)
+
+MATH_PATTERN = re.compile(r"^[\d\s+\-*/x×÷().,=%?]+$")
+
+
+def question_needs_thinking(text: str) -> bool:
+    """Decide thinking mode for a question using local rules only."""
+
+    if not isinstance(text, str):
+        return False
+
+    normalized = " ".join(text.lower().split())
+
+    if not normalized:
+        return False
+
+    if len(normalized) > 180 or normalized.count("?") >= 2:
+        return True
+
+    if HARD_THINKING_PATTERN.search(normalized):
+        return True
+
+    if MATH_PATTERN.match(normalized) and any(
+        character.isdigit() for character in normalized
+    ):
+        return False
+
+    if EASY_THINKING_PATTERN.match(normalized):
+        return False
+
+    if IDENTITY_PATTERN.search(normalized) and len(normalized) <= 60:
+        return False
+
+    return False
 
 
 class OllamaError(Exception):
@@ -83,6 +137,7 @@ class OllamaClient:
         self,
         messages: list[dict[str, Any]],
         stream: bool = False,
+        think: bool | None = None,
     ) -> dict[str, Any]:
         options: dict[str, Any] = {
             "temperature": CONFIG.temperature,
@@ -118,7 +173,7 @@ class OllamaClient:
             "model": self.model,
             "messages": payload_messages,
             "stream": stream,
-            "think": CONFIG.think,
+            "think": CONFIG.think if think is None else bool(think),
             "keep_alive": CONFIG.keep_alive,
             "options": options,
         }
@@ -202,12 +257,13 @@ class OllamaClient:
     def chat(
         self,
         messages: list[dict[str, Any]],
+        think: bool | None = None,
     ) -> str:
         """Generate a complete AI response."""
 
         self._validate_messages(messages)
 
-        payload = self._build_payload(messages)
+        payload = self._build_payload(messages, think=think)
 
         with self._lock:
             self._ensure_open()
@@ -259,6 +315,7 @@ class OllamaClient:
     def stream_chat(
         self,
         messages: list[dict[str, Any]],
+        think: bool | None = None,
     ) -> Iterator[str]:
         """Generate response chunks using Ollama streaming."""
 
@@ -267,6 +324,7 @@ class OllamaClient:
         payload = self._build_payload(
             messages,
             stream=True,
+            think=think,
         )
 
         with self._lock:

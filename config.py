@@ -48,19 +48,23 @@ class AppConfig:
     model_name: str = "starmentai"
 
     # Generation settings
-    temperature: float = 0.7
+    temperature: float = 0.6
     top_p: float = 0.9
     num_ctx: int = 2048
     num_thread: int = 4
     num_predict: int | None = 512
-    system_prompt_tokens: int = 640
+    system_prompt_tokens: int = 672
     think: bool = False
+    adaptive_think: bool = True
 
     system_prompt: str = ""
     style_reminder: str = (
-        "Nhắc lại: giữ đúng giọng điệu và quy tắc của StarmentAI "
-        "đã nêu ở đầu hội thoại. Trả lời đúng câu hỏi cuối cùng, "
-        "bám sát thông tin đã có trong hội thoại, không đổi chủ đề, "
+        "Nhắc lại quy tắc của StarmentAI: trả lời như chat, "
+        "câu dễ/chào hỏi/toán đơn trả lời ngắn gọn; giọng thẳng, "
+        "sắc, châm biếm thông minh, tiếng lóng tự nhiên khi hợp cảnh, "
+        "không công kích cá nhân; chủ đề nhạy cảm thì nghiêm túc; "
+        "trả lời đúng câu hỏi vừa đặt, bám sát hội thoại, "
+        "không sáo rỗng, không đổi chủ đề; "
         "dùng đúng ngôn ngữ của người dùng."
     )
 
@@ -191,6 +195,11 @@ class AppConfig:
                 "OLLAMA_THINK",
                 str(defaults.think)
             ).lower() in ("true", "1", "yes"),
+
+            adaptive_think=os.getenv(
+                "STARMENTAI_ADAPTIVE_THINK",
+                str(defaults.adaptive_think)
+            ).lower() in ("true", "1", "yes", "on"),
 
             keep_alive=os.getenv(
                 "OLLAMA_KEEP_ALIVE",

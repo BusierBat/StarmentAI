@@ -6,9 +6,14 @@ Coordinates validation, context management and AI generation.
 
 from typing import Any, Iterator
 
+from config import CONFIG
 from core.conversation import Conversation, ConversationError
 from core.context_manager import ContextManager
-from core.ollama_client import OllamaError, OllamaClient
+from core.ollama_client import (
+    OllamaError,
+    OllamaClient,
+    question_needs_thinking,
+)
 from core.validator import Validator, ValidationError
 
 
@@ -74,6 +79,14 @@ class Processor:
                 f"Invalid AI response: {exc}"
             ) from exc
 
+    def will_think(self, user_input: str) -> bool:
+        """Decide the thinking mode for the next generation."""
+
+        if not CONFIG.adaptive_think:
+            return CONFIG.think
+
+        return question_needs_thinking(user_input)
+
     # --------------------------------------------------
     # Context management
     # --------------------------------------------------
@@ -129,11 +142,12 @@ class Processor:
     def _generate_response(
         self,
         context: list[dict[str, str]],
+        think: bool,
     ) -> str:
         """Generate an AI response using Ollama."""
 
         try:
-            raw_response = self.client.chat(context)
+            raw_response = self.client.chat(context, think=think)
 
         except OllamaError as exc:
             raise ProcessorError(
@@ -161,9 +175,11 @@ class Processor:
 
         revision = self.conversation.revision
 
+        think = self.will_think(user_input)
+
         context = self._build_context(user_input)
 
-        response = self._generate_response(context)
+        response = self._generate_response(context, think)
 
         try:
             self.conversation.record_exchange(
@@ -205,12 +221,17 @@ class Processor:
 
         revision = self.conversation.revision
 
+        think = self.will_think(user_input)
+
         context = self._build_context(user_input)
 
         chunks: list[str] = []
 
         try:
-            for chunk in self.client.stream_chat(context):
+            for chunk in self.client.stream_chat(
+                context,
+                think=think,
+            ):
                 chunks.append(chunk)
                 yield chunk
 

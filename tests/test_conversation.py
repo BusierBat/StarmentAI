@@ -13,7 +13,8 @@ class FakeClient:
         self.closed = False
         self.calls = []
 
-    def chat(self, messages):
+    def chat(self, messages, think=None):
+        self.last_think = think
         self.calls.append(messages)
 
         if self.should_fail:
@@ -99,6 +100,7 @@ class TestConversation(unittest.TestCase):
             SimpleNamespace(
                 max_history_messages=2,
                 max_user_input_length=2000,
+                adaptive_think=True,
             ),
         ):
             self.conversation.send_message("First")

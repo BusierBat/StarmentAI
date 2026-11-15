@@ -1,5 +1,6 @@
 
 import unittest
+from unittest.mock import patch
 
 from core.conversation import Conversation
 from core.context_manager import ContextManager
@@ -15,8 +16,10 @@ class FakeClient:
         self.stream_chunks = ["Hello", " ", "world"]
         self.chat_calls = []
         self.stream_calls = []
+        self.last_think = None
 
-    def chat(self, messages):
+    def chat(self, messages, think=None):
+        self.last_think = think
         self.chat_calls.append(messages)
 
         if self.should_fail:
@@ -26,7 +29,8 @@ class FakeClient:
 
         return self.response
 
-    def stream_chat(self, messages):
+    def stream_chat(self, messages, think=None):
+        self.last_think = think
         self.stream_calls.append(messages)
 
         if self.should_fail:
@@ -39,6 +43,39 @@ class FakeClient:
 
     def close(self):
         self.closed = True
+
+
+class TestWillThink(unittest.TestCase):
+    def setUp(self):
+        self.client = FakeClient()
+
+        self.processor = Processor(
+            conversation=Conversation(client=self.client)
+        )
+
+    def tearDown(self):
+        self.processor.close()
+
+    def test_easy_question_skips_thinking(self):
+        self.assertFalse(self.processor.will_think("Xin chào"))
+
+    def test_hard_question_uses_thinking(self):
+        self.assertTrue(
+            self.processor.will_think("Vì sao bầu trời màu xanh?")
+        )
+
+    def test_adaptive_off_falls_back_to_static_think(self):
+        with patch("core.processor.CONFIG") as config:
+            config.adaptive_think = False
+            config.think = True
+
+            self.assertTrue(self.processor.will_think("Xin chào"))
+
+    def test_stream_passes_think_decision(self):
+        list(self.processor.process_stream("Xin chào"))
+
+        self.assertIsNotNone(self.client.last_think)
+        self.assertFalse(self.client.last_think)
 
 
 class TestProcessor(unittest.TestCase):
@@ -117,7 +154,7 @@ class TestProcessor(unittest.TestCase):
     def test_history_conflict_aborts_save(self):
         conversation = self.conversation
 
-        def conflicting_chat(messages):
+        def conflicting_chat(messages, think=None):
             conversation.clear()
             return "Late response"
 

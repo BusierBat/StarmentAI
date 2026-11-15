@@ -9,7 +9,7 @@ import threading
 from typing import Any
 
 from config import CONFIG
-from core.ollama_client import OllamaClient
+from core.ollama_client import OllamaClient, question_needs_thinking
 
 
 class ConversationError(Exception):
@@ -138,7 +138,14 @@ class Conversation:
 
             # Network request runs outside the history lock.
             try:
-                response = self.client.chat(pending_messages)
+                response = self.client.chat(
+                    pending_messages,
+                    think=(
+                        question_needs_thinking(user_input)
+                        if CONFIG.adaptive_think
+                        else None
+                    ),
+                )
 
             except Exception as exc:
                 raise ConversationError(

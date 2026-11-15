@@ -4,8 +4,15 @@ StarmentAI - Main Application
 Terminal entry point.
 """
 
+import sys
+import time
+
 from config import CONFIG
 from core.processor import Processor, ProcessorError
+
+
+SMOOTH_STEP = 2
+SMOOTH_DELAY = 0.006
 
 
 APP_NAME = CONFIG.app_name
@@ -64,14 +71,34 @@ def handle_command(command: str, processor: Processor) -> bool:
     return True
 
 
+def write_smoothly(chunk: str) -> None:
+    """Print a streamed chunk with a steady typewriter pace."""
+
+    if len(chunk) <= SMOOTH_STEP:
+        sys.stdout.write(chunk)
+        sys.stdout.flush()
+        return
+
+    for index in range(0, len(chunk), SMOOTH_STEP):
+        sys.stdout.write(chunk[index:index + SMOOTH_STEP])
+        sys.stdout.flush()
+        time.sleep(SMOOTH_DELAY)
+
+
 def process_input(user_input: str, processor: Processor) -> None:
     """Validate and process user input."""
 
+    thinking = processor.will_think(user_input)
+
     print(f"\n{APP_NAME}: ", end="", flush=True)
+
+    if thinking:
+        print("(thinking...)")
+        print(f"{APP_NAME}: ", end="", flush=True)
 
     try:
         for chunk in processor.process_stream(user_input):
-            print(chunk, end="", flush=True)
+            write_smoothly(chunk)
 
     finally:
         print("\n")
@@ -81,6 +108,13 @@ def run() -> None:
     """Main application loop."""
 
     print_banner()
+
+    if not CONFIG.system_prompt:
+        print(
+            "Warning: system prompt was not loaded from Modelfile.\n"
+            "Run the app from the project directory so the "
+            "StarmentAI persona is applied.\n"
+        )
 
     try:
         with Processor() as processor:

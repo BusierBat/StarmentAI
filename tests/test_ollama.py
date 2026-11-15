@@ -10,6 +10,7 @@ from core.ollama_client import (
     OllamaClient,
     OllamaConnectionError,
     OllamaResponseError,
+    question_needs_thinking,
 )
 
 
@@ -318,6 +319,70 @@ class TestSystemPromptConfig(unittest.TestCase):
             _load_system_prompt("khong-ton-tai.modelfile"),
             "",
         )
+
+
+class TestPayloadThinkMode(unittest.TestCase):
+    def setUp(self):
+        self.client = OllamaClient()
+
+    def tearDown(self):
+        self.client.close()
+
+    def test_think_override(self):
+        payload = self.client._build_payload(
+            [{"role": "user", "content": "Hello"}],
+            think=True,
+        )
+
+        self.assertTrue(payload["think"])
+
+        payload = self.client._build_payload(
+            [{"role": "user", "content": "Hello"}],
+            think=False,
+        )
+
+        self.assertFalse(payload["think"])
+
+    def test_think_default_uses_config(self):
+        payload = self.client._build_payload(
+            [{"role": "user", "content": "Hello"}]
+        )
+
+        self.assertEqual(payload["think"], CONFIG.think)
+
+
+class TestQuestionNeedsThinking(unittest.TestCase):
+    def test_greeting_skips_thinking(self):
+        self.assertFalse(question_needs_thinking("Xin chào StarmentAI!"))
+
+    def test_thanks_skips_thinking(self):
+        self.assertFalse(question_needs_thinking("Cảm ơn nha"))
+
+    def test_simple_math_skips_thinking(self):
+        self.assertFalse(question_needs_thinking("17*23=?"))
+
+    def test_reasoning_needs_thinking(self):
+        self.assertTrue(
+            question_needs_thinking("Vì sao bầu trời màu xanh?")
+        )
+
+    def test_coding_needs_thinking(self):
+        self.assertTrue(
+            question_needs_thinking(
+                "Giúp t viết hàm fibonacci bằng python"
+            )
+        )
+
+    def test_long_question_needs_thinking(self):
+        self.assertTrue(question_needs_thinking("chi tiết " * 40))
+
+    def test_two_questions_need_thinking(self):
+        self.assertTrue(
+            question_needs_thinking("AI là gì? Nó hoạt động ra sao?")
+        )
+
+    def test_empty_skips_thinking(self):
+        self.assertFalse(question_needs_thinking("   "))
 
 
 if __name__ == "__main__":
