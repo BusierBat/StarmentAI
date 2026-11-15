@@ -215,3 +215,6 @@ class ContextManager:
     def clear(self) -> None:
         """Reset the context manager."""
         return None
+
+
+print("")

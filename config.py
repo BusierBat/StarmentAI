@@ -231,3 +231,5 @@ class AppConfig:
 
 
 CONFIG: Final[AppConfig] = AppConfig.from_env()
+
+print("")

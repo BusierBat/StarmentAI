@@ -62,3 +62,5 @@ for thread_count in THREADS:
 
     except requests.RequestException as error:
         print(f"ERROR: {error}")
+
+print("")

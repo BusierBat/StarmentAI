@@ -405,3 +405,5 @@ class OllamaClient:
         traceback: Any,
     ) -> None:
         self.close()
+
+print("")

@@ -302,3 +302,5 @@ class Processor:
         traceback: Any,
     ) -> None:
         self.close()
+
+print{""}
