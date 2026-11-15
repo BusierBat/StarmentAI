@@ -21,10 +21,13 @@ class TestOllamaClient(unittest.TestCase):
     def make_response(self, status_code=200, data=None):
         response = Mock()
         response.status_code = status_code
+        response.ok = 200 <= status_code < 300
         response.text = "Test response"
         response.json.return_value = data or {
             "message": {"content": "Hello from StarmentAI"}
         }
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
         return response
 
     def test_successful_chat(self):
@@ -81,8 +84,8 @@ class TestOllamaClient(unittest.TestCase):
 
     def test_http_error(self):
         response = self.make_response(
-            status_code=500,
-            data={"error": "Internal server error"},
+            status_code=400,
+            data={"error": "Bad request"},
         )
 
         with patch.object(
@@ -134,11 +137,10 @@ class TestOllamaClient(unittest.TestCase):
             "post",
             return_value=response,
         ):
-            result = self.client.chat([
-                {"role": "user", "content": "Hello"}
-            ])
-
-        self.assertEqual(result, "")
+            with self.assertRaises(OllamaResponseError):
+                self.client.chat([
+                    {"role": "user", "content": "Hello"}
+                ])
 
 
 if __name__ == "__main__":

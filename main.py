@@ -4,12 +4,13 @@ StarmentAI - Main Application
 Terminal entry point.
 """
 
+from config import CONFIG
 from core.processor import Processor, ProcessorError
 from core.validator import Validator, ValidationError
 
 
-APP_NAME = "StarmentAI"
-APP_VERSION = "0.1.0"
+APP_NAME = CONFIG.app_name
+APP_VERSION = CONFIG.app_version
 
 COMMANDS = {
     "/help": "Show available commands",

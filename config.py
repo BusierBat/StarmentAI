@@ -30,17 +30,18 @@ class AppConfig:
     top_p: float = 0.9
     num_ctx: int = 1024
     num_thread: int = 2
+    num_predict: int | None = None
     think: bool = False
 
     # Model memory management
-    keep_alive: str = "30s"
+    keep_alive: str = "5m"
 
     # Request settings
     connect_timeout: int = 10
     read_timeout: int = 300
 
     # Conversation limits
-    max_history_messages: int = 6
+    max_history_messages: int = 12
     max_user_input_length: int = 2000
 
     def __post_init__(self) -> None:
@@ -63,6 +64,9 @@ class AppConfig:
 
         if self.num_thread <= 0:
             raise ValueError("num_thread must be greater than 0.")
+
+        if self.num_predict is not None and self.num_predict <= 0:
+            raise ValueError("num_predict must be greater than 0.")
 
         if self.connect_timeout <= 0 or self.read_timeout <= 0:
             raise ValueError("Timeout values must be greater than 0.")
@@ -126,6 +130,12 @@ class AppConfig:
                 "OLLAMA_NUM_THREAD",
                 defaults.num_thread
             )),
+
+            num_predict=(
+                int(os.environ["OLLAMA_NUM_PREDICT"])
+                if os.getenv("OLLAMA_NUM_PREDICT")
+                else defaults.num_predict
+            ),
 
             think=os.getenv(
                 "OLLAMA_THINK",

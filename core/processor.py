@@ -12,7 +12,7 @@ from core.ollama_client import OllamaError, OllamaClient
 from core.validator import Validator, ValidationError
 
 
-class ProcessorError(Exception):
+class ProcessorError(ValueError):
     """Base exception for processor errors."""
 
 

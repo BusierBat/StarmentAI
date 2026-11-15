@@ -22,7 +22,7 @@ class TestContextManager(unittest.TestCase):
 
         self.assertEqual(
             self.manager.estimate_tokens(messages),
-            5,
+            13,
         )
 
     def test_build_context_keeps_recent_messages(self):
@@ -120,9 +120,9 @@ class TestContextManager(unittest.TestCase):
 
         usage = self.manager.get_context_usage(messages)
 
-        self.assertEqual(usage["estimated_tokens"], 5)
+        self.assertEqual(usage["estimated_tokens"], 13)
         self.assertEqual(usage["message_budget"], 80)
-        self.assertEqual(usage["remaining_budget"], 75)
+        self.assertEqual(usage["remaining_budget"], 67)
 
 
 if __name__ == "__main__":

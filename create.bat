@@ -1,0 +1,1 @@
+ollama create starmentai -f Modelfile

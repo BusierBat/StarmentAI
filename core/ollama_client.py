@@ -84,18 +84,23 @@ class OllamaClient:
         messages: list[dict[str, Any]],
         stream: bool = False,
     ) -> dict[str, Any]:
+        options: dict[str, Any] = {
+            "temperature": CONFIG.temperature,
+            "top_p": CONFIG.top_p,
+            "num_ctx": CONFIG.num_ctx,
+            "num_thread": CONFIG.num_thread,
+        }
+
+        if CONFIG.num_predict is not None:
+            options["num_predict"] = CONFIG.num_predict
+
         return {
             "model": self.model,
             "messages": messages,
             "stream": stream,
             "think": CONFIG.think,
             "keep_alive": CONFIG.keep_alive,
-            "options": {
-                "temperature": CONFIG.temperature,
-                "top_p": CONFIG.top_p,
-                "num_ctx": CONFIG.num_ctx,
-                "num_thread": CONFIG.num_thread,
-            },
+            "options": options,
         }
 
     # ---------------- HTTP REQUEST ----------------
