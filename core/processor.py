@@ -4,7 +4,7 @@ StarmentAI - Processor
 Coordinates validation, context management and AI generation.
 """
 
-from typing import Any
+from typing import Any, Iterator
 
 from core.conversation import Conversation, ConversationError
 from core.context_manager import ContextManager
@@ -157,20 +157,19 @@ class Processor:
                 "Processor is already closed."
             )
 
-        # Step 1: Validate input.
         user_input = self._validate_input(user_input)
 
-        # Step 2: Build context.
+        revision = self.conversation.revision
+
         context = self._build_context(user_input)
 
-        # Step 3: Generate AI response.
         response = self._generate_response(context)
 
-        # Step 4: Store conversation exchange.
         try:
             self.conversation.record_exchange(
                 user_input,
                 response,
+                expected_revision=revision,
             )
 
         except (ValueError, ConversationError) as exc:
@@ -178,21 +177,61 @@ class Processor:
                 f"Failed to save conversation: {exc}"
             ) from exc
 
-        # Step 5: Calculate context usage.
         try:
             context_usage = (
                 self.context_manager.get_context_usage(context)
             )
 
-        except Exception as exc:
+        except Exception:
             context_usage = None
 
-        # Step 6: Return result.
         return {
             "success": True,
             "response": response,
             "context": context_usage,
         }
+
+    def process_stream(
+        self,
+        user_input: str,
+    ) -> Iterator[str]:
+
+        if self._closed:
+            raise ProcessorError(
+                "Processor is already closed."
+            )
+
+        user_input = self._validate_input(user_input)
+
+        revision = self.conversation.revision
+
+        context = self._build_context(user_input)
+
+        chunks: list[str] = []
+
+        try:
+            for chunk in self.client.stream_chat(context):
+                chunks.append(chunk)
+                yield chunk
+
+        except OllamaError as exc:
+            raise ProcessorError(
+                f"AI generation failed: {exc}"
+            ) from exc
+
+        response = self._validate_response("".join(chunks))
+
+        try:
+            self.conversation.record_exchange(
+                user_input,
+                response,
+                expected_revision=revision,
+            )
+
+        except (ValueError, ConversationError) as exc:
+            raise ProcessorError(
+                f"Failed to save conversation: {exc}"
+            ) from exc
 
     # --------------------------------------------------
     # Conversation management

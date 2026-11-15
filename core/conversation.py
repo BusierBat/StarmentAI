@@ -55,6 +55,11 @@ class Conversation:
         with self._lock:
             return self._closed
 
+    @property
+    def revision(self) -> int:
+        with self._lock:
+            return self._revision
+
     # --------------------------------------------------
     # Validation
     # --------------------------------------------------
@@ -168,6 +173,7 @@ class Conversation:
         self,
         user_input: str,
         assistant_response: str,
+        expected_revision: int | None = None,
     ) -> None:
         """Store a completed user-assistant exchange."""
 
@@ -180,6 +186,15 @@ class Conversation:
 
         with self._lock:
             self._ensure_open()
+
+            if (
+                expected_revision is not None
+                and self._revision != expected_revision
+            ):
+                raise ConversationError(
+                    "Conversation history changed during generation. "
+                    "Please try again."
+                )
 
             self._record_exchange_unlocked(
                 user_input,

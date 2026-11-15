@@ -28,9 +28,10 @@ class AppConfig:
     # Generation settings
     temperature: float = 0.7
     top_p: float = 0.9
-    num_ctx: int = 1024
-    num_thread: int = 2
-    num_predict: int | None = None
+    num_ctx: int = 2048
+    num_thread: int = 4
+    num_predict: int | None = 512
+    system_prompt_tokens: int = 576
     think: bool = False
 
     # Model memory management
@@ -67,6 +68,11 @@ class AppConfig:
 
         if self.num_predict is not None and self.num_predict <= 0:
             raise ValueError("num_predict must be greater than 0.")
+
+        if self.system_prompt_tokens < 0:
+            raise ValueError(
+                "System prompt tokens cannot be negative."
+            )
 
         if self.connect_timeout <= 0 or self.read_timeout <= 0:
             raise ValueError("Timeout values must be greater than 0.")
@@ -136,6 +142,11 @@ class AppConfig:
                 if os.getenv("OLLAMA_NUM_PREDICT")
                 else defaults.num_predict
             ),
+
+            system_prompt_tokens=int(os.getenv(
+                "STARMENTAI_SYSTEM_PROMPT_TOKENS",
+                defaults.system_prompt_tokens
+            )),
 
             think=os.getenv(
                 "OLLAMA_THINK",

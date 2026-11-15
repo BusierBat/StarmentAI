@@ -1,5 +1,7 @@
 
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from core.context_manager import ContextManager
 
@@ -9,6 +11,7 @@ class TestContextManager(unittest.TestCase):
         self.manager = ContextManager(
             context_limit=100,
             reserved_tokens=20,
+            system_prompt_tokens=0,
             chars_per_token=1,
         )
 
@@ -22,8 +25,54 @@ class TestContextManager(unittest.TestCase):
 
         self.assertEqual(
             self.manager.estimate_tokens(messages),
-            13,
+            15,
         )
+
+    def test_system_prompt_tokens_are_reserved(self):
+        manager = ContextManager(
+            context_limit=100,
+            reserved_tokens=20,
+            system_prompt_tokens=30,
+            chars_per_token=1,
+        )
+
+        self.assertEqual(manager.message_budget, 50)
+
+    def test_budget_exhausted_by_system_prompt(self):
+        with self.assertRaises(ValueError):
+            ContextManager(
+                context_limit=30,
+                reserved_tokens=20,
+                system_prompt_tokens=30,
+            )
+
+    def test_default_system_prompt_tokens_from_config(self):
+        with patch(
+            "core.context_manager.CONFIG",
+            SimpleNamespace(
+                num_ctx=1000,
+                num_predict=None,
+                system_prompt_tokens=123,
+            ),
+        ):
+            manager = ContextManager()
+
+        self.assertEqual(manager.system_prompt_tokens, 123)
+        self.assertEqual(manager.message_budget, 627)
+
+    def test_reserved_tokens_default_to_num_predict(self):
+        with patch(
+            "core.context_manager.CONFIG",
+            SimpleNamespace(
+                num_ctx=1000,
+                num_predict=300,
+                system_prompt_tokens=0,
+            ),
+        ):
+            manager = ContextManager()
+
+        self.assertEqual(manager.reserved_tokens, 300)
+        self.assertEqual(manager.message_budget, 700)
 
     def test_build_context_keeps_recent_messages(self):
         history = [
@@ -47,6 +96,24 @@ class TestContextManager(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["content"], "C" * 30)
+
+    def test_context_selection_is_contiguous(self):
+        history = [
+            {"role": "user", "content": "A"},
+            {"role": "assistant", "content": "a"},
+            {"role": "user", "content": "B" * 40},
+            {"role": "assistant", "content": "b" * 40},
+            {"role": "user", "content": "C"},
+        ]
+
+        result = self.manager.build_context(history)
+
+        contents = [message["content"] for message in result]
+
+        self.assertNotIn("A", contents)
+        self.assertNotIn("a", contents)
+        self.assertNotIn("B" * 40, contents)
+        self.assertEqual(result[-1]["content"], "C")
 
     def test_newest_oversized_message_is_preserved(self):
         history = [
@@ -107,11 +174,16 @@ class TestContextManager(unittest.TestCase):
             ContextManager(
                 context_limit=100,
                 reserved_tokens=100,
+                system_prompt_tokens=0,
             )
 
     def test_invalid_chars_per_token(self):
         with self.assertRaises(ValueError):
             ContextManager(chars_per_token=0)
+
+    def test_invalid_message_overhead(self):
+        with self.assertRaises(ValueError):
+            ContextManager(message_overhead=-1)
 
     def test_context_usage(self):
         messages = [
@@ -120,9 +192,9 @@ class TestContextManager(unittest.TestCase):
 
         usage = self.manager.get_context_usage(messages)
 
-        self.assertEqual(usage["estimated_tokens"], 13)
+        self.assertEqual(usage["estimated_tokens"], 15)
         self.assertEqual(usage["message_budget"], 80)
-        self.assertEqual(usage["remaining_budget"], 67)
+        self.assertEqual(usage["remaining_budget"], 65)
 
 
 if __name__ == "__main__":

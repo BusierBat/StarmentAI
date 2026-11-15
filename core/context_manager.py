@@ -15,8 +15,9 @@ class ContextManager:
         self,
         context_limit: int | None = None,
         reserved_tokens: int | None = None,
-        chars_per_token: float = 2.5,
-        message_overhead: int = 4,
+        system_prompt_tokens: int | None = None,
+        chars_per_token: float = 3.5,
+        message_overhead: int = 6,
     ):
         self.context_limit = (
             context_limit
@@ -24,10 +25,20 @@ class ContextManager:
             else CONFIG.num_ctx
         )
 
+        self.system_prompt_tokens = (
+            system_prompt_tokens
+            if system_prompt_tokens is not None
+            else CONFIG.system_prompt_tokens
+        )
+
         self.reserved_tokens = (
             reserved_tokens
             if reserved_tokens is not None
-            else max(128, min(384, self.context_limit // 4))
+            else (
+                CONFIG.num_predict
+                if CONFIG.num_predict is not None
+                else max(128, min(512, self.context_limit // 4))
+            )
         )
 
         self.chars_per_token = chars_per_token
@@ -38,14 +49,14 @@ class ContextManager:
                 "Context limit must be greater than zero."
             )
 
+        if self.system_prompt_tokens < 0:
+            raise ValueError(
+                "System prompt tokens cannot be negative."
+            )
+
         if self.reserved_tokens < 0:
             raise ValueError(
                 "Reserved tokens cannot be negative."
-            )
-
-        if self.reserved_tokens >= self.context_limit:
-            raise ValueError(
-                "Reserved tokens must be smaller than context limit."
             )
 
         if self.chars_per_token <= 0:
@@ -59,8 +70,16 @@ class ContextManager:
             )
 
         self.message_budget = (
-            self.context_limit - self.reserved_tokens
+            self.context_limit
+            - self.reserved_tokens
+            - self.system_prompt_tokens
         )
+
+        if self.message_budget <= 0:
+            raise ValueError(
+                "Context budget exhausted by system prompt "
+                "and reserved tokens."
+            )
 
     def _estimate_message_tokens(self, message: dict[str, str]) -> int:
         content = message.get("content", "")
@@ -120,8 +139,10 @@ class ContextManager:
         """
         Return a reduced copy of conversation history.
 
-        Newer complete exchanges have higher priority and the latest
-        user message is always preserved. Original history is never modified.
+        Selection is contiguous from the newest message so the model
+        never sees gaps in the middle of the conversation, and the
+        latest user message is always preserved. Original history is
+        never modified.
         """
         if not isinstance(history, list):
             raise ValueError("History must be a list.")
@@ -161,8 +182,7 @@ class ContextManager:
             )
 
             if used + block_tokens > self.message_budget:
-                index = next_index
-                continue
+                break
 
             selected = [*block, *selected]
             used += block_tokens
@@ -182,6 +202,7 @@ class ContextManager:
             "message_budget": self.message_budget,
             "context_limit": self.context_limit,
             "reserved_tokens": self.reserved_tokens,
+            "system_prompt_tokens": self.system_prompt_tokens,
             "remaining_budget": max(
                 0,
                 self.message_budget - estimated,

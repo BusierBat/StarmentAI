@@ -114,6 +114,32 @@ class TestConversation(unittest.TestCase):
 
         self.assertFalse(self.client.closed)
 
+    def test_record_exchange_with_matching_revision(self):
+        self.conversation.record_exchange(
+            "Hello",
+            "Hi",
+            expected_revision=0,
+        )
+
+        self.assertEqual(len(self.conversation.history), 2)
+
+    def test_record_exchange_revision_conflict(self):
+        self.conversation.send_message("First")
+
+        with self.assertRaises(ConversationError):
+            self.conversation.record_exchange(
+                "Hello",
+                "Hi",
+                expected_revision=0,
+            )
+
+    def test_revision_increments_after_send(self):
+        self.assertEqual(self.conversation.revision, 0)
+
+        self.conversation.send_message("Hello")
+
+        self.assertEqual(self.conversation.revision, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

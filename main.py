@@ -6,7 +6,6 @@ Terminal entry point.
 
 from config import CONFIG
 from core.processor import Processor, ProcessorError
-from core.validator import Validator, ValidationError
 
 
 APP_NAME = CONFIG.app_name
@@ -40,11 +39,6 @@ def print_help() -> None:
     print()
 
 
-def print_response(response: str) -> None:
-    """Display AI response."""
-    print(f"\n{APP_NAME}: {response}\n")
-
-
 def handle_command(command: str, processor: Processor) -> bool:
     """
     Handle terminal commands.
@@ -73,11 +67,14 @@ def handle_command(command: str, processor: Processor) -> bool:
 def process_input(user_input: str, processor: Processor) -> None:
     """Validate and process user input."""
 
-    validated_input = Validator.validate_user_input(user_input)
+    print(f"\n{APP_NAME}: ", end="", flush=True)
 
-    result = processor.process(validated_input)
+    try:
+        for chunk in processor.process_stream(user_input):
+            print(chunk, end="", flush=True)
 
-    print_response(result["response"])
+    finally:
+        print("\n")
 
 
 def run() -> None:
@@ -110,9 +107,6 @@ def run() -> None:
 
                     process_input(user_input, processor)
 
-                except ValidationError as exc:
-                    print(f"\nInput error: {exc}\n")
-
                 except ProcessorError as exc:
                     print(f"\nProcessing error: {exc}\n")
 
@@ -133,4 +127,3 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
-

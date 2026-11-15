@@ -1,5 +1,6 @@
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import requests
@@ -141,6 +142,66 @@ class TestOllamaClient(unittest.TestCase):
                 self.client.chat([
                     {"role": "user", "content": "Hello"}
                 ])
+
+    def test_stream_chat_yields_chunks(self):
+        response = self.make_response()
+        response.iter_lines.return_value = [
+            b'{"message": {"content": "Hel"}}',
+            b'{"message": {"content": "lo"}}',
+            b'{"done": true}',
+        ]
+
+        with patch.object(
+            self.client.session,
+            "post",
+            return_value=response,
+        ):
+            chunks = list(self.client.stream_chat([
+                {"role": "user", "content": "Hello"}
+            ]))
+
+        self.assertEqual(chunks, ["Hel", "lo"])
+
+    def test_stream_chat_stops_on_error_line(self):
+        response = self.make_response()
+        response.iter_lines.return_value = [
+            b'{"error": "model is loading"}',
+        ]
+
+        with patch.object(
+            self.client.session,
+            "post",
+            return_value=response,
+        ):
+            with self.assertRaises(OllamaResponseError):
+                list(self.client.stream_chat([
+                    {"role": "user", "content": "Hello"}
+                ]))
+
+    def test_payload_contains_num_predict(self):
+        with patch(
+            "core.ollama_client.CONFIG",
+            SimpleNamespace(
+                chat_url="http://localhost:11434/api/chat",
+                model_name="starmentai",
+                temperature=0.7,
+                top_p=0.9,
+                num_ctx=2048,
+                num_thread=4,
+                num_predict=512,
+                think=False,
+                keep_alive="5m",
+            ),
+        ):
+            client = OllamaClient()
+
+            payload = client._build_payload([
+                {"role": "user", "content": "Hello"}
+            ])
+
+        self.assertEqual(payload["options"]["num_predict"], 512)
+
+        client.close()
 
 
 if __name__ == "__main__":
