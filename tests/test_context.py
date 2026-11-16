@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from config import CONFIG
 from core.context_manager import ContextManager
 
 
@@ -12,6 +13,7 @@ class TestContextManager(unittest.TestCase):
             context_limit=100,
             reserved_tokens=20,
             system_prompt_tokens=0,
+            style_reminder_tokens=0,
             chars_per_token=1,
         )
 
@@ -33,6 +35,7 @@ class TestContextManager(unittest.TestCase):
             context_limit=100,
             reserved_tokens=20,
             system_prompt_tokens=30,
+            style_reminder_tokens=0,
             chars_per_token=1,
         )
 
@@ -44,6 +47,7 @@ class TestContextManager(unittest.TestCase):
                 context_limit=30,
                 reserved_tokens=20,
                 system_prompt_tokens=30,
+                style_reminder_tokens=0,
             )
 
     def test_default_system_prompt_tokens_from_config(self):
@@ -55,7 +59,7 @@ class TestContextManager(unittest.TestCase):
                 system_prompt_tokens=123,
             ),
         ):
-            manager = ContextManager()
+            manager = ContextManager(style_reminder_tokens=0)
 
         self.assertEqual(manager.system_prompt_tokens, 123)
         self.assertEqual(manager.message_budget, 627)
@@ -69,7 +73,7 @@ class TestContextManager(unittest.TestCase):
                 system_prompt_tokens=0,
             ),
         ):
-            manager = ContextManager()
+            manager = ContextManager(style_reminder_tokens=0)
 
         self.assertEqual(manager.reserved_tokens, 300)
         self.assertEqual(manager.message_budget, 700)
@@ -175,6 +179,7 @@ class TestContextManager(unittest.TestCase):
                 context_limit=100,
                 reserved_tokens=100,
                 system_prompt_tokens=0,
+                style_reminder_tokens=0,
             )
 
     def test_invalid_chars_per_token(self):
@@ -184,6 +189,37 @@ class TestContextManager(unittest.TestCase):
     def test_invalid_message_overhead(self):
         with self.assertRaises(ValueError):
             ContextManager(message_overhead=-1)
+
+    def test_safety_margin_is_reserved(self):
+        manager = ContextManager(
+            context_limit=100,
+            reserved_tokens=20,
+            system_prompt_tokens=30,
+            style_reminder_tokens=10,
+            chars_per_token=1,
+            safety_margin=10,
+        )
+
+        self.assertEqual(manager.message_budget, 30)
+
+    def test_negative_safety_margin_is_rejected(self):
+        with self.assertRaises(ValueError):
+            ContextManager(safety_margin=-1)
+
+    def test_context_usage_reports_safety_margin(self):
+        manager = ContextManager(
+            context_limit=100,
+            reserved_tokens=20,
+            system_prompt_tokens=30,
+            style_reminder_tokens=10,
+            chars_per_token=1,
+            safety_margin=10,
+        )
+
+        usage = manager.get_context_usage([])
+
+        self.assertEqual(usage["safety_margin"], 10)
+        self.assertEqual(usage["message_budget"], 30)
 
     def test_context_usage(self):
         messages = [
@@ -195,6 +231,69 @@ class TestContextManager(unittest.TestCase):
         self.assertEqual(usage["estimated_tokens"], 15)
         self.assertEqual(usage["message_budget"], 80)
         self.assertEqual(usage["remaining_budget"], 65)
+        self.assertEqual(usage["style_reminder_tokens"], 0)
+
+    def test_real_config_budget_is_positive(self):
+        manager = ContextManager()
+
+        reserved = (
+            manager.reserved_tokens
+            + manager.system_prompt_tokens
+            + manager.style_reminder_tokens
+            + manager.safety_margin
+        )
+
+        self.assertGreater(manager.message_budget, 0)
+        self.assertLessEqual(reserved, CONFIG.num_ctx)
+        self.assertEqual(
+            manager.message_budget,
+            CONFIG.num_ctx - reserved,
+        )
+
+    def test_default_style_reminder_is_counted(self):
+        manager = ContextManager()
+
+        self.assertGreater(manager.style_reminder_tokens, 0)
+        self.assertEqual(
+            manager.style_reminder_tokens,
+            ContextManager(
+                style_reminder_tokens=None,
+                chars_per_token=CONFIG.chars_per_token,
+            ).style_reminder_tokens,
+        )
+
+    def test_long_history_stays_within_budget(self):
+        manager = ContextManager()
+
+        history = []
+
+        for index in range(12):
+            history.append({
+                "role": "user",
+                "content": (
+                    f"Câu hỏi số {index} về lập trình Python cơ bản"
+                ),
+            })
+            history.append({
+                "role": "assistant",
+                "content": (
+                    f"Trả lời số {index}: giải thích ngắn gọn, "
+                    "rõ ràng, đúng trọng tâm."
+                ),
+            })
+
+        context = manager.build_context(history)
+        usage = manager.get_context_usage(context)
+
+        self.assertLessEqual(
+            usage["estimated_tokens"],
+            manager.message_budget,
+        )
+        self.assertEqual(
+            context[-1]["content"],
+            history[-1]["content"],
+        )
+        self.assertFalse(usage["exceeds_message_budget"])
 
 
 if __name__ == "__main__":

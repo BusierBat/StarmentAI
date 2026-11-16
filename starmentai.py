@@ -1,14 +1,22 @@
-import requests
+"""Small health-check script for the local StarmentAI model."""
 
-response = requests.post(
-    "http://localhost:11434/api/chat",
-    json={
-        "model": "starmentai",
-        "messages": [{"role": "user", "content": "Xin chào!"}],
-        "stream": False,
-        "think": False,
-    },
-    timeout=60,
-)
+from core.ollama_client import OllamaClient, OllamaError
 
-print(response.json()["message"]["content"])
+
+def main() -> int:
+    try:
+        with OllamaClient() as client:
+            response = client.chat(
+                [{"role": "user", "content": "Xin chào!"}],
+                think=False,
+            )
+    except OllamaError as exc:
+        print(f"StarmentAI health check failed: {exc}")
+        return 1
+
+    print(response)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

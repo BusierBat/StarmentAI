@@ -5,6 +5,7 @@ Centralized application configuration.
 
 import os
 from dataclasses import dataclass
+from math import ceil
 from typing import Final
 
 
@@ -41,31 +42,28 @@ class AppConfig:
 
     temperature: float = 0.6
     top_p: float = 0.9
-    num_ctx: int = 3072
-    num_thread: int = 4
-    num_predict: int | None = 1024
-    system_prompt_tokens: int = 704
+    num_ctx: int = 2048
+    num_thread: int = 2
+    num_predict: int | None = 512
+    chars_per_token: float = 2.5
+    context_safety_margin: int = 64
+    system_prompt_tokens: int = 0
     think: bool = False
     adaptive_think: bool = True
 
     system_prompt: str = ""
     style_reminder: str = (
-        "Nhắc lại quy tắc của StarmentAI: trả lời như chat; "
-        "chào hỏi, cảm ơn, toán đơn thì ngắn gọn đúng ý; "
-        "câu hỏi có nội dung thì trả lời đủ ý, nêu lý do và "
-        "ví dụ cụ thể, tránh một câu cụt; giọng thẳng, sắc, "
-        "châm biếm thông minh, tiếng lóng tự nhiên khi hợp cảnh, "
-        "không công kích cá nhân; chủ đề nhạy cảm thì nghiêm túc; "
-        "trả lời đúng câu hỏi vừa đặt, bám sát hội thoại, "
-        "không sáo rỗng, không đổi chủ đề; "
-        "dùng đúng ngôn ngữ của người dùng."
+        "Nhắc lại: trả lời đúng câu hỏi, bám hội thoại, giữ giọng "
+        "StarmentAI thẳng/sắc/châm biếm nhưng không công kích cá nhân; "
+        "chủ đề nhạy cảm thì nghiêm túc; dùng ngôn ngữ của người dùng; "
+        "không bịa, không biết thì nói rõ; độ dài hợp lý."
     )
 
-    keep_alive: str = "5m"
+    keep_alive: str = "30s"
     connect_timeout: int = 10
     read_timeout: int = 300
 
-    max_history_messages: int = 12
+    max_history_messages: int = 20
     max_user_input_length: int = 2000
 
     def __post_init__(self) -> None:
@@ -83,6 +81,10 @@ class AppConfig:
             raise ValueError("num_thread must be greater than 0.")
         if self.num_predict is not None and self.num_predict <= 0:
             raise ValueError("num_predict must be greater than 0.")
+        if self.chars_per_token <= 0:
+            raise ValueError("chars_per_token must be greater than 0.")
+        if self.context_safety_margin < 0:
+            raise ValueError("context_safety_margin cannot be negative.")
         if self.system_prompt_tokens < 0:
             raise ValueError("System prompt tokens cannot be negative.")
         if self.connect_timeout <= 0 or self.read_timeout <= 0:
@@ -91,6 +93,16 @@ class AppConfig:
             raise ValueError("History limit cannot be negative.")
         if self.max_user_input_length <= 0:
             raise ValueError("Input length must be greater than 0.")
+
+        if self.system_prompt_tokens == 0 and self.system_prompt:
+            object.__setattr__(
+                self,
+                "system_prompt_tokens",
+                max(
+                    1,
+                    ceil(len(self.system_prompt) / self.chars_per_token),
+                ),
+            )
 
     @property
     def chat_url(self) -> str:
@@ -111,7 +123,9 @@ class AppConfig:
             num_ctx=int(os.getenv("OLLAMA_NUM_CTX", defaults.num_ctx)),
             num_thread=int(os.getenv("OLLAMA_NUM_THREAD", defaults.num_thread)),
             num_predict=int(num_predict_env) if num_predict_env else defaults.num_predict,
-            system_prompt_tokens=int(os.getenv("STARMENTAI_SYSTEM_PROMPT_TOKENS", defaults.system_prompt_tokens)),
+            chars_per_token=float(os.getenv("STARMENTAI_CHARS_PER_TOKEN", defaults.chars_per_token)),
+            context_safety_margin=int(os.getenv("STARMENTAI_CONTEXT_SAFETY_MARGIN", defaults.context_safety_margin)),
+            system_prompt_tokens=int(os.getenv("STARMENTAI_SYSTEM_PROMPT_TOKENS", "0")),
             system_prompt=_load_system_prompt(os.getenv("STARMENTAI_MODELFILE", "Modelfile")),
             style_reminder=os.getenv("STARMENTAI_STYLE_REMINDER", defaults.style_reminder),
             think=os.getenv("OLLAMA_THINK", str(defaults.think)).lower() in ("true", "1", "yes"),

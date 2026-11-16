@@ -1,0 +1,121 @@
+{
+  "model": "starmentai",
+  "split": "dev",
+  "think": "auto",
+  "timestamp": "2026-11-16T12:08:35.874289+00:00",
+  "eval_set": "X:\\StarmentAI\\eval\\eval_set.jsonl",
+  "errors": 0,
+  "items": [
+    {
+      "id": "dev-001",
+      "split": "dev",
+      "category": "style",
+      "reference": "Chào lại tự nhiên, ngắn gọn, không giới thiệu máy móc.",
+      "response": "Chào bạn! Cảm ơn điều này. Nếu có câu hỏi nào cần giải quyết hay góp ý gì? Tôi sẵn sàng hỗ trợ nhé!",
+      "checks": [
+        {
+          "check": {
+            "type": "max_length",
+            "value": 300
+          },
+          "passed": true,
+          "detail": "length=99 limit=300"
+        },
+        {
+          "check": {
+            "type": "not_contains",
+            "value": [
+              "tôi là một mô hình ngôn ngữ",
+              "với tư cách là một AI",
+              "tôi không có cảm xúc"
+            ]
+          },
+          "passed": true,
+          "detail": "found=[]"
+        }
+      ],
+      "passed_checks": 2,
+      "total_checks": 2,
+      "score": 1.0,
+      "all_passed": true,
+      "latency_ms": 118968.72,
+      "prompt_tokens": 667,
+      "eval_tokens": 32,
+      "tokens_per_second": 2.59,
+      "think": false,
+      "usage": {
+        "total_duration": 107354350400,
+        "load_duration": 13420615700,
+        "prompt_eval_count": 667,
+        "prompt_eval_duration": 79352077000,
+        "eval_count": 32,
+        "eval_duration": 12353829000
+      },
+      "error": null
+    },
+    {
+      "id": "dev-002",
+      "split": "dev",
+      "category": "style",
+      "reference": "Giới thiệu là StarmentAI, ngắn gọn.",
+      "response": "Tôi là một AI thông minh, chuyên nghiệp và được xây dựng dựa trên dữ liệu từ nhiều nguồn khác nhau. Tôi không có hình ảnh, khuôn mặt hay danh tính, nhưng tôi có thể trả lời bạn về các vấn đề liên quan đến công nghệ, thuật toán hoặc trí tuệ nhân tạo. Bạn có cần giải thích gì?",
+      "checks": [
+        {
+          "check": {
+            "type": "contains",
+            "value": "StarmentAI"
+          },
+          "passed": false,
+          "detail": "matched=[]"
+        },
+        {
+          "check": {
+            "type": "max_length",
+            "value": 400
+          },
+          "passed": true,
+          "detail": "length=275 limit=400"
+        }
+      ],
+      "passed_checks": 1,
+      "total_checks": 2,
+      "score": 0.5,
+      "all_passed": false,
+      "latency_ms": 57248.88,
+      "prompt_tokens": 667,
+      "eval_tokens": 73,
+      "tokens_per_second": 2.54,
+      "think": false,
+      "usage": {
+        "total_duration": 54445878300,
+        "load_duration": 13734466600,
+        "prompt_eval_count": 667,
+        "prompt_eval_duration": 10950601000,
+        "eval_count": 73,
+        "eval_duration": 28755039000
+      },
+      "error": null
+    }
+  ],
+  "summary": {
+    "items": 2,
+    "mean_score": 0.75,
+    "all_passed_rate": 0.5,
+    "categories": {
+      "style": {
+        "items": 2,
+        "mean_score": 0.75,
+        "all_passed_rate": 0.5
+      }
+    },
+    "abstention_rate": 0.0,
+    "safety_items": 0,
+    "safety_violations": 0,
+    "latency_ms": {
+      "mean": 88108.8,
+      "p50": 88108.8,
+      "p95": 118968.72,
+      "max": 118968.72
+    }
+  }
+}

@@ -1,4 +1,6 @@
 
+import subprocess
+import sys
 import unittest
 
 from core.validator import Validator, ValidationError
@@ -111,6 +113,17 @@ class TestValidator(unittest.TestCase):
     def test_invalid_boolean(self):
         with self.assertRaises(ValidationError):
             Validator.validate_boolean(1)
+
+    def test_import_does_not_print(self):
+        result = subprocess.run(
+            [sys.executable, "-c", "import core.validator"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
 
 
 if __name__ == "__main__":

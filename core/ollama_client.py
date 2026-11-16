@@ -14,6 +14,7 @@ from typing import Any, Iterator
 import requests
 
 from config import CONFIG
+from core.token_counter import count_text
 
 
 HARD_THINKING_PATTERN = re.compile(
@@ -23,19 +24,27 @@ HARD_THINKING_PATTERN = re.compile(
     r"\bviết\b|\bcode\b|\blập trình\b|\bthuật toán\b|\bdebug\b|"
     r"\bhàm\b|\bsql\b|\bpython\b|\bjavascript\b|\bjava\b|\bapi\b|"
     r"\bwhy\b|\bhow\b|\bexplain\b|\bcompare\b|\bdifference\b|"
-    r"\balgorithm\b"
+    r"\balgorithm\b|\bdesign\b|\barchitecture\b|\boptimize\b"
 )
 
 EASY_THINKING_PATTERN = re.compile(
     r"^(chào|hello|hi|hey|alo|yo|cảm ơn|thanks|thank you|tạm biệt|"
-    r"bye|ok|okay|ừ|uhm|aha|hehe|haha)\b"
+    r"bye|ok|okay|ừ|uhm|aha|hehe|haha|lol|okay)\b"
 )
 
 IDENTITY_PATTERN = re.compile(
-    r"là ai|tên gì|giới thiệu bản thân|who are you"
+    r"là ai|tên gì|giới thiệu bản thân|who are you|what are you"
 )
 
 MATH_PATTERN = re.compile(r"^[\d\s+\-*/x×÷().,=%?]+$")
+
+
+def estimate_tokens(text: str) -> int:
+    """Token estimation using the shared, conservative counter."""
+    if not text:
+        return 0
+
+    return count_text(text, chars_per_token=CONFIG.chars_per_token)
 
 
 def question_needs_thinking(text: str) -> bool:
@@ -49,22 +58,33 @@ def question_needs_thinking(text: str) -> bool:
     if not normalized:
         return False
 
-    if len(normalized) > 180 or normalized.count("?") >= 2:
+    token_estimate = estimate_tokens(normalized)
+
+    # Long questions likely need thinking
+    if token_estimate > 50 or normalized.count("?") >= 2:
         return True
 
+    # Hard thinking patterns
     if HARD_THINKING_PATTERN.search(normalized):
         return True
 
+    # Simple math - no thinking needed
     if MATH_PATTERN.match(normalized) and any(
         character.isdigit() for character in normalized
     ):
         return False
 
+    # Greetings, thanks, simple acknowledgments - no thinking
     if EASY_THINKING_PATTERN.match(normalized):
         return False
 
-    if IDENTITY_PATTERN.search(normalized) and len(normalized) <= 60:
+    # Identity questions - no thinking needed
+    if IDENTITY_PATTERN.search(normalized) and token_estimate <= 20:
         return False
+
+    # Medium complexity questions - use thinking
+    if token_estimate > 20:
+        return True
 
     return False
 
@@ -89,9 +109,18 @@ class OllamaClient:
 
     VALID_ROLES = {"system", "user", "assistant"}
 
-    def __init__(self) -> None:
+    USAGE_FIELDS = (
+        "total_duration",
+        "load_duration",
+        "prompt_eval_count",
+        "prompt_eval_duration",
+        "eval_count",
+        "eval_duration",
+    )
+
+    def __init__(self, model: str | None = None) -> None:
         self.url = CONFIG.chat_url
-        self.model = CONFIG.model_name
+        self.model = model if model else CONFIG.model_name
 
         self.session = requests.Session()
         self._lock = threading.Lock()
@@ -150,14 +179,6 @@ class OllamaClient:
             options["num_predict"] = CONFIG.num_predict
 
         payload_messages = list(messages)
-
-        if CONFIG.system_prompt and (
-            payload_messages[0].get("role") != "system"
-        ):
-            payload_messages.insert(0, {
-                "role": "system",
-                "content": CONFIG.system_prompt,
-            })
 
         if CONFIG.style_reminder:
             last = payload_messages[-1]
@@ -254,12 +275,12 @@ class OllamaClient:
 
     # ---------------- CHAT ----------------
 
-    def chat(
+    def chat_with_usage(
         self,
         messages: list[dict[str, Any]],
         think: bool | None = None,
-    ) -> str:
-        """Generate a complete AI response."""
+    ) -> dict[str, Any]:
+        """Generate a response and return content plus Ollama usage."""
 
         self._validate_messages(messages)
 
@@ -303,12 +324,27 @@ class OllamaClient:
                             "Ollama returned an empty response."
                         )
 
-                    return content
+                    return {
+                        "content": content,
+                        "usage": {
+                            field: data.get(field)
+                            for field in self.USAGE_FIELDS
+                        },
+                    }
 
             except requests.exceptions.RequestException as exc:
                 raise OllamaConnectionError(
                     f"Failed to read response: {exc}"
                 ) from exc
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        think: bool | None = None,
+    ) -> str:
+        """Generate a complete AI response."""
+
+        return self.chat_with_usage(messages, think=think)["content"]
 
     # ---------------- STREAMING ----------------
 

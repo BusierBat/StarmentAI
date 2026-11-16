@@ -5,14 +5,9 @@ Terminal entry point.
 """
 
 import sys
-import time
 
 from config import CONFIG
 from core.processor import Processor, ProcessorError
-
-
-SMOOTH_STEP = 2
-SMOOTH_DELAY = 0.006
 
 
 APP_NAME = CONFIG.app_name
@@ -72,17 +67,25 @@ def handle_command(command: str, processor: Processor) -> bool:
 
 
 def write_smoothly(chunk: str) -> None:
-    """Print a streamed chunk with a steady typewriter pace."""
+    """Print a streamed chunk directly without artificial delay."""
+    sys.stdout.write(chunk)
+    sys.stdout.flush()
 
-    if len(chunk) <= SMOOTH_STEP:
-        sys.stdout.write(chunk)
-        sys.stdout.flush()
+
+def print_context_warning(processor: Processor) -> None:
+    """Warn when the estimated context exceeds the message budget."""
+    usage = processor.last_context_usage
+
+    if not usage or not usage.get("exceeds_message_budget"):
         return
 
-    for index in range(0, len(chunk), SMOOTH_STEP):
-        sys.stdout.write(chunk[index:index + SMOOTH_STEP])
-        sys.stdout.flush()
-        time.sleep(SMOOTH_DELAY)
+    print(
+        "\n[WARNING] Context vượt ngân sách: "
+        f"{usage['estimated_tokens']} / {usage['message_budget']} token "
+        f"(giới hạn {usage['context_limit']}, "
+        f"reserved {usage['reserved_tokens']}). "
+        "Hội thoại cũ đã bị cắt bớt.\n"
+    )
 
 
 def process_input(user_input: str, processor: Processor) -> None:
@@ -102,6 +105,7 @@ def process_input(user_input: str, processor: Processor) -> None:
 
     finally:
         print("\n")
+        print_context_warning(processor)
 
 
 def run() -> None:

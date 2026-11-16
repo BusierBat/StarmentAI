@@ -1,11 +1,16 @@
 
+import contextlib
+import io
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from config import CONFIG
 from core.conversation import Conversation
 from core.context_manager import ContextManager
 from core.ollama_client import OllamaConnectionError
 from core.processor import Processor, ProcessorError
+from main import print_context_warning
 
 
 class FakeClient:
@@ -90,6 +95,7 @@ class TestProcessor(unittest.TestCase):
             context_limit=1024,
             reserved_tokens=256,
             system_prompt_tokens=0,
+            style_reminder_tokens=0,
         )
 
         self.processor = Processor(
@@ -209,6 +215,68 @@ class TestProcessor(unittest.TestCase):
 
         with self.assertRaises(ProcessorError):
             list(self.processor.process_stream("Hello"))
+
+    def test_default_context_manager_uses_safety_margin(self):
+        processor = Processor(
+            conversation=Conversation(client=self.client)
+        )
+
+        self.assertEqual(
+            processor.context_manager.safety_margin,
+            CONFIG.context_safety_margin,
+        )
+        self.assertGreater(
+            processor.context_manager.style_reminder_tokens,
+            0,
+        )
+
+        processor.close()
+
+    def test_last_context_usage_is_recorded(self):
+        self.processor.process("Hello")
+
+        usage = self.processor.last_context_usage
+
+        self.assertIsNotNone(usage)
+        self.assertIn("estimated_tokens", usage)
+        self.assertIn("message_budget", usage)
+        self.assertIn("exceeds_message_budget", usage)
+
+    def test_context_warning_is_silent_within_budget(self):
+        processor = SimpleNamespace(
+            last_context_usage={
+                "exceeds_message_budget": False,
+            }
+        )
+
+        output = io.StringIO()
+
+        with contextlib.redirect_stdout(output):
+            print_context_warning(processor)
+
+        self.assertEqual(output.getvalue(), "")
+
+    def test_context_warning_reports_overflow(self):
+        processor = SimpleNamespace(
+            last_context_usage={
+                "exceeds_message_budget": True,
+                "estimated_tokens": 900,
+                "message_budget": 575,
+                "context_limit": 2048,
+                "reserved_tokens": 512,
+            }
+        )
+
+        output = io.StringIO()
+
+        with contextlib.redirect_stdout(output):
+            print_context_warning(processor)
+
+        text = output.getvalue()
+
+        self.assertIn("WARNING", text)
+        self.assertIn("900", text)
+        self.assertIn("575", text)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,156 @@
+{
+  "model": "starmentai",
+  "split": "dev",
+  "think": "auto",
+  "timestamp": "2026-11-16T11:17:47.890800+00:00",
+  "eval_set": "X:\\StarmentAI\\eval\\eval_set.jsonl",
+  "errors": 0,
+  "items": [
+    {
+      "id": "dev-001",
+      "split": "dev",
+      "category": "style",
+      "reference": "Chào lại tự nhiên, ngắn gọn, không giới thiệu máy móc.",
+      "response": "Chào bạn! Nếu có câu hỏi gì, hãy cho tôi nhé!",
+      "checks": [
+        {
+          "check": {
+            "type": "max_length",
+            "value": 300
+          },
+          "passed": true,
+          "detail": "length=45 limit=300"
+        },
+        {
+          "check": {
+            "type": "not_contains",
+            "value": [
+              "tôi là một mô hình ngôn ngữ",
+              "với tư cách là một AI",
+              "tôi không có cảm xúc"
+            ]
+          },
+          "passed": true,
+          "detail": "found=[]"
+        }
+      ],
+      "passed_checks": 2,
+      "total_checks": 2,
+      "score": 1.0,
+      "all_passed": true,
+      "latency_ms": 127364.52,
+      "prompt_tokens": 667,
+      "eval_tokens": 16,
+      "tokens_per_second": 1.98,
+      "think": false,
+      "usage": {
+        "total_duration": 125163594200,
+        "load_duration": 11021535100,
+        "prompt_eval_count": 667,
+        "prompt_eval_duration": 105790255000,
+        "eval_count": 16,
+        "eval_duration": 8068926000
+      },
+      "error": null
+    },
+    {
+      "id": "dev-002",
+      "split": "dev",
+      "category": "style",
+      "reference": "Giới thiệu là StarmentAI, ngắn gọn.",
+      "response": "Tôi là một AI được tạo ra để hỗ trợ và giúp đỡ mọi người thông qua các công cụ hiện đại. Tôi không có hình dáng, danh tính hay hoàn cảnh, nhưng tôi luôn tin rằng mọi người có thể làm việc tốt với tôi. Nếu bạn cần sự giúp đỡ trong bất kỳ lĩnh vực nào, hãy nói chuyện với tôi!",
+      "checks": [
+        {
+          "check": {
+            "type": "contains",
+            "value": "StarmentAI"
+          },
+          "passed": false,
+          "detail": "matched=[]"
+        },
+        {
+          "check": {
+            "type": "max_length",
+            "value": 400
+          },
+          "passed": true,
+          "detail": "length=274 limit=400"
+        }
+      ],
+      "passed_checks": 1,
+      "total_checks": 2,
+      "score": 0.5,
+      "all_passed": false,
+      "latency_ms": 45242.69,
+      "prompt_tokens": 667,
+      "eval_tokens": 70,
+      "tokens_per_second": 2.29,
+      "think": false,
+      "usage": {
+        "total_duration": 45221266800,
+        "load_duration": 30965200,
+        "prompt_eval_count": 667,
+        "prompt_eval_duration": 14485585000,
+        "eval_count": 70,
+        "eval_duration": 30615766000
+      },
+      "error": null
+    },
+    {
+      "id": "dev-003",
+      "split": "dev",
+      "category": "style",
+      "reference": "Một câu chuyện cười ngắn, không dài dòng.",
+      "response": "Chị em có thể là một ai gì mà không ngờ được? Cậu ấy đang làm việc với đồng nghiệp hay... Ảnh hưởng đến cả hai mình. Đừng hy vọng rằng cái cười này sẽ khiến mọi người bất ngờ, vì thế hãy giữ tâm hồn bình tĩnh và nhẹ nhàng nhé!",
+      "checks": [
+        {
+          "check": {
+            "type": "max_length",
+            "value": 500
+          },
+          "passed": true,
+          "detail": "length=226 limit=500"
+        }
+      ],
+      "passed_checks": 1,
+      "total_checks": 1,
+      "score": 1.0,
+      "all_passed": true,
+      "latency_ms": 44769.75,
+      "prompt_tokens": 671,
+      "eval_tokens": 65,
+      "tokens_per_second": 2.15,
+      "think": false,
+      "usage": {
+        "total_duration": 44745155400,
+        "load_duration": 15390300,
+        "prompt_eval_count": 671,
+        "prompt_eval_duration": 14523845000,
+        "eval_count": 65,
+        "eval_duration": 30167957000
+      },
+      "error": null
+    }
+  ],
+  "summary": {
+    "items": 3,
+    "mean_score": 0.8333,
+    "all_passed_rate": 0.6667,
+    "categories": {
+      "style": {
+        "items": 3,
+        "mean_score": 0.8333,
+        "all_passed_rate": 0.6667
+      }
+    },
+    "abstention_rate": 0.0,
+    "safety_items": 0,
+    "safety_violations": 0,
+    "latency_ms": {
+      "mean": 72458.99,
+      "p50": 45242.69,
+      "p95": 127364.52,
+      "max": 127364.52
+    }
+  }
+}

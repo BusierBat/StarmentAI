@@ -207,7 +207,7 @@ class TestOllamaClient(unittest.TestCase):
 
         client.close()
 
-    def test_payload_prepends_system_and_appends_reminder(self):
+    def test_payload_appends_reminder_only(self):
         with patch(
             "core.ollama_client.CONFIG",
             SimpleNamespace(
@@ -232,11 +232,7 @@ class TestOllamaClient(unittest.TestCase):
 
         roles = [m["role"] for m in payload["messages"]]
 
-        self.assertEqual(roles, ["system", "user"])
-        self.assertEqual(
-            payload["messages"][0]["content"],
-            "Bạn là StarmentAI.",
-        )
+        self.assertEqual(roles, ["user"])
         self.assertTrue(
             payload["messages"][-1]["content"].endswith(
                 "\n\nNhắc lại: giữ giọng điệu."
@@ -273,7 +269,13 @@ class TestOllamaClient(unittest.TestCase):
             payload["messages"][0]["content"],
             "Tùy chỉnh.",
         )
+        self.assertEqual(payload["messages"][0]["role"], "system")
         self.assertEqual(len(payload["messages"]), 2)
+        self.assertTrue(
+            payload["messages"][-1]["content"].endswith(
+                "\n\nNhắc lại: giữ giọng điệu."
+            )
+        )
 
         client.close()
 
@@ -314,11 +316,83 @@ class TestSystemPromptConfig(unittest.TestCase):
         self.assertIn("StarmentAI", CONFIG.system_prompt)
         self.assertIn("GIỌNG ĐIỆU", CONFIG.system_prompt)
 
+    def test_system_prompt_tokens_are_conservative(self):
+        self.assertGreaterEqual(CONFIG.system_prompt_tokens, 600)
+
+    def test_context_settings_are_positive(self):
+        self.assertGreater(CONFIG.chars_per_token, 0)
+        self.assertGreaterEqual(CONFIG.context_safety_margin, 0)
+        self.assertLess(len(CONFIG.style_reminder), 300)
+
     def test_load_system_prompt_missing_file_returns_empty(self):
         self.assertEqual(
             _load_system_prompt("khong-ton-tai.modelfile"),
             "",
         )
+
+
+class TestChatWithUsage(unittest.TestCase):
+    def setUp(self):
+        self.client = OllamaClient()
+
+    def tearDown(self):
+        self.client.close()
+
+    def make_response(self, data):
+        response = Mock()
+        response.status_code = 200
+        response.ok = True
+        response.text = "Test response"
+        response.json.return_value = data
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        return response
+
+    def test_returns_content_and_usage(self):
+        data = {
+            "message": {"content": "Xin chào"},
+            "total_duration": 1_000_000_000,
+            "prompt_eval_count": 12,
+            "eval_count": 8,
+            "eval_duration": 500_000_000,
+        }
+
+        with patch.object(
+            self.client.session,
+            "post",
+            return_value=self.make_response(data),
+        ):
+            result = self.client.chat_with_usage(
+                [{"role": "user", "content": "Chào"}]
+            )
+
+        self.assertEqual(result["content"], "Xin chào")
+        self.assertEqual(result["usage"]["eval_count"], 8)
+        self.assertEqual(result["usage"]["prompt_eval_count"], 12)
+
+    def test_chat_returns_content_only(self):
+        data = {
+            "message": {"content": "Xin chào"},
+            "eval_count": 8,
+        }
+
+        with patch.object(
+            self.client.session,
+            "post",
+            return_value=self.make_response(data),
+        ):
+            result = self.client.chat(
+                [{"role": "user", "content": "Chào"}]
+            )
+
+        self.assertEqual(result, "Xin chào")
+
+    def test_model_override(self):
+        client = OllamaClient(model="starmentai-candidate")
+
+        self.assertEqual(client.model, "starmentai-candidate")
+
+        client.close()
 
 
 class TestPayloadThinkMode(unittest.TestCase):

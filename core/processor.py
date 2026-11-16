@@ -14,6 +14,7 @@ from core.ollama_client import (
     OllamaClient,
     question_needs_thinking,
 )
+from core.token_counter import count_text
 from core.validator import Validator, ValidationError
 
 
@@ -45,11 +46,18 @@ class Processor:
         self.context_manager = (
             context_manager
             if context_manager is not None
-            else ContextManager()
+            else ContextManager(
+                style_reminder_tokens=count_text(
+                    CONFIG.style_reminder,
+                    chars_per_token=CONFIG.chars_per_token,
+                ),
+                safety_margin=CONFIG.context_safety_margin,
+            )
         )
 
         self.client = self.conversation.client
         self._closed = False
+        self.last_context_usage: dict[str, Any] | None = None
 
     # --------------------------------------------------
     # Validation
@@ -133,6 +141,14 @@ class Processor:
                 "Latest user message was excluded from context."
             )
 
+        try:
+            self.last_context_usage = (
+                self.context_manager.get_context_usage(context)
+            )
+
+        except Exception:
+            self.last_context_usage = None
+
         return context
 
     # --------------------------------------------------
@@ -196,6 +212,8 @@ class Processor:
         try:
             context_usage = (
                 self.context_manager.get_context_usage(context)
+                if self.last_context_usage is None
+                else self.last_context_usage
             )
 
         except Exception:

@@ -169,5 +169,3 @@ class Validator:
             )
 
         return value
-
-print("")

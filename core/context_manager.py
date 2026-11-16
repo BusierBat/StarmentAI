@@ -1,13 +1,12 @@
-
 """
 StarmentAI - Context Manager
 Controls how much conversation history is sent to the model.
 """
 
-from math import ceil
 from typing import Any
 
 from config import CONFIG
+from core.token_counter import count_message, count_text
 
 
 class ContextManager:
@@ -16,8 +15,10 @@ class ContextManager:
         context_limit: int | None = None,
         reserved_tokens: int | None = None,
         system_prompt_tokens: int | None = None,
-        chars_per_token: float = 3.5,
+        style_reminder_tokens: int | None = None,
+        chars_per_token: float | None = None,
         message_overhead: int = 6,
+        safety_margin: int = 0,
     ):
         self.context_limit = (
             context_limit
@@ -31,6 +32,27 @@ class ContextManager:
             else CONFIG.system_prompt_tokens
         )
 
+        self.chars_per_token = (
+            chars_per_token
+            if chars_per_token is not None
+            else float(getattr(CONFIG, "chars_per_token", 2.5))
+        )
+
+        if style_reminder_tokens is not None:
+            self.style_reminder_tokens = style_reminder_tokens
+        else:
+            style_reminder = getattr(CONFIG, "style_reminder", "")
+            self.style_reminder_tokens = (
+                count_text(
+                    style_reminder,
+                    chars_per_token=self.chars_per_token,
+                )
+                if style_reminder
+                else 0
+            )
+
+        self.safety_margin = safety_margin
+
         self.reserved_tokens = (
             reserved_tokens
             if reserved_tokens is not None
@@ -41,7 +63,6 @@ class ContextManager:
             )
         )
 
-        self.chars_per_token = chars_per_token
         self.message_overhead = message_overhead
 
         if self.context_limit <= 0:
@@ -52,6 +73,16 @@ class ContextManager:
         if self.system_prompt_tokens < 0:
             raise ValueError(
                 "System prompt tokens cannot be negative."
+            )
+
+        if self.style_reminder_tokens < 0:
+            raise ValueError(
+                "Style reminder tokens cannot be negative."
+            )
+
+        if self.safety_margin < 0:
+            raise ValueError(
+                "Safety margin cannot be negative."
             )
 
         if self.reserved_tokens < 0:
@@ -73,19 +104,22 @@ class ContextManager:
             self.context_limit
             - self.reserved_tokens
             - self.system_prompt_tokens
+            - self.style_reminder_tokens
+            - self.safety_margin
         )
 
         if self.message_budget <= 0:
             raise ValueError(
-                "Context budget exhausted by system prompt "
-                "and reserved tokens."
+                "Context budget exhausted by system prompt, "
+                "style reminder, safety margin and reserved tokens."
             )
 
     def _estimate_message_tokens(self, message: dict[str, str]) -> int:
-        content = message.get("content", "")
-        role = message.get("role", "")
-        characters = len(content) + len(role)
-        return self.message_overhead + ceil(characters / self.chars_per_token)
+        return count_message(
+            message,
+            chars_per_token=self.chars_per_token,
+            overhead=self.message_overhead,
+        )
 
     def estimate_tokens(self, messages: list[dict[str, Any]]) -> int:
         """Estimate token usage from message content."""
@@ -203,6 +237,8 @@ class ContextManager:
             "context_limit": self.context_limit,
             "reserved_tokens": self.reserved_tokens,
             "system_prompt_tokens": self.system_prompt_tokens,
+            "style_reminder_tokens": self.style_reminder_tokens,
+            "safety_margin": self.safety_margin,
             "remaining_budget": max(
                 0,
                 self.message_budget - estimated,
