@@ -22,11 +22,11 @@ Ba thằng thay vì ngồi hàng giờ lướt tiktok vô nghĩa thì đã cùng
 
 Dự án có sự hỗ trợ bởi AI
 
-StarmentAi là 1 dự án AI mã nguồn mở do ba thằng rảnh từ rủ nhau xóa System32 vì chán không có gì làm,và đqã hợp tác lập nên StarmentAI để chia sẻ kiến thức,thử thách bản thân với cái mới.
+StarmentAi là 1 dự án AI mã nguồn mở được viết bằng Python do ba thằng rảnh từ rủ nhau xóa System32 vì chán không có gì làm,và đqã hợp tác lập nên StarmentAI để chia sẻ kiến thức,thử thách bản thân với cái mới.
 
 StarmentAI được huấn luyện bởi model qwen3:0.6b từ Ollama Library (https://ollama.com/library/qwen3 ).
 
-*How to use:
+#HOW TO USE:
 
 1. Trước tiên bắt buộc phải cài Ollama. Nếu chưa cài thì có thể tải xuống ở đây: https://ollama.com/download . Hãy chọn hệ điều hành mà mọi người sử fdụng.
 
@@ -37,3 +37,10 @@ StarmentAI được huấn luyện bởi model qwen3:0.6b từ Ollama Library (h
 4. Chạy file run.bat và tận hưởng.
 
 Link Github chính thức: https://github.com/BusierBat/StarmentAI_
+
+#MỤC TIÊU DÀI HẠN:
+
+Sau khi đã hoàn thiện StarmentAI bằng Python thì 3 thằng học thêm kiến thức về Rust và học cách build thì sẽ rewwrite sang Rust và build exe
+
+=====NẾU CÓ LỖI GÌ THÌ KỆ MẸ TỤI BÂY====
+=====HẾT====
