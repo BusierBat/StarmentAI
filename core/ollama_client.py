@@ -175,6 +175,12 @@ class OllamaClient:
             "num_thread": CONFIG.num_thread,
         }
 
+        # Offload inference to the GPU (e.g. an iGPU) when configured, so the
+        # CPU is freed for everything else. None keeps Ollama's own default.
+        num_gpu = getattr(CONFIG, "num_gpu", None)
+        if num_gpu is not None:
+            options["num_gpu"] = num_gpu
+
         if CONFIG.num_predict is not None:
             options["num_predict"] = CONFIG.num_predict
 

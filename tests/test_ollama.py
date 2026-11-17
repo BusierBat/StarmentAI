@@ -425,6 +425,51 @@ class TestPayloadThinkMode(unittest.TestCase):
         self.assertEqual(payload["think"], CONFIG.think)
 
 
+class TestPayloadNumGpu(unittest.TestCase):
+    @staticmethod
+    def _base_config(**overrides):
+        cfg = dict(
+            chat_url="http://localhost:11434/api/chat",
+            model_name="starmentai",
+            temperature=0.7,
+            top_p=0.9,
+            num_ctx=2048,
+            num_thread=2,
+            num_predict=512,
+            think=False,
+            keep_alive="5m",
+            system_prompt="",
+            style_reminder="",
+            num_gpu=None,
+        )
+        cfg.update(overrides)
+        return SimpleNamespace(**cfg)
+
+    def test_num_gpu_included_when_set(self):
+        with patch(
+            "core.ollama_client.CONFIG", self._base_config(num_gpu=999)
+        ):
+            client = OllamaClient()
+            payload = client._build_payload(
+                [{"role": "user", "content": "Hello"}]
+            )
+            client.close()
+
+        self.assertEqual(payload["options"]["num_gpu"], 999)
+
+    def test_num_gpu_absent_when_none(self):
+        with patch(
+            "core.ollama_client.CONFIG", self._base_config(num_gpu=None)
+        ):
+            client = OllamaClient()
+            payload = client._build_payload(
+                [{"role": "user", "content": "Hello"}]
+            )
+            client.close()
+
+        self.assertNotIn("num_gpu", payload["options"])
+
+
 class TestQuestionNeedsThinking(unittest.TestCase):
     def test_greeting_skips_thinking(self):
         self.assertFalse(question_needs_thinking("Xin chào StarmentAI!"))

@@ -34,7 +34,7 @@ class AppConfig:
     """Application configuration."""
 
     app_name: str = "StarmentAI"
-    app_version: str = "0.2.0"
+    app_version: str = "0.3.0"
 
     ollama_host: str = "http://localhost:11434"
     ollama_chat_endpoint: str = "/api/chat"
@@ -44,6 +44,7 @@ class AppConfig:
     top_p: float = 0.9
     num_ctx: int = 2048
     num_thread: int = 2
+    num_gpu: int | None = None
     num_predict: int | None = 512
     chars_per_token: float = 2.5
     context_safety_margin: int = 64
@@ -66,6 +67,19 @@ class AppConfig:
     max_history_messages: int = 20
     max_user_input_length: int = 2000
 
+    # Real-time data features
+    enable_system_time: bool = True
+    enable_web_search: bool = True
+    search_provider: str = "duckduckgo"
+    search_timeout: float = 10.0
+    search_max_results: int = 5
+    search_max_snippet: int = 300
+    search_context_tokens: int = 300
+
+    # Time format
+    time_format_24h: bool = True
+    default_timezone: str = "Asia/Ho_Chi_Minh"
+
     def __post_init__(self) -> None:
         if not self.ollama_host.startswith(("http://", "https://")):
             raise ValueError("Invalid Ollama host URL.")
@@ -79,6 +93,8 @@ class AppConfig:
             raise ValueError("num_ctx must be greater than 0.")
         if self.num_thread <= 0:
             raise ValueError("num_thread must be greater than 0.")
+        if self.num_gpu is not None and self.num_gpu < 0:
+            raise ValueError("num_gpu must be zero or greater when set.")
         if self.num_predict is not None and self.num_predict <= 0:
             raise ValueError("num_predict must be greater than 0.")
         if self.chars_per_token <= 0:
@@ -93,6 +109,14 @@ class AppConfig:
             raise ValueError("History limit cannot be negative.")
         if self.max_user_input_length <= 0:
             raise ValueError("Input length must be greater than 0.")
+        if self.search_timeout <= 0:
+            raise ValueError("Search timeout must be greater than 0.")
+        if self.search_max_results <= 0:
+            raise ValueError("Search max results must be greater than 0.")
+        if self.search_max_snippet <= 0:
+            raise ValueError("Search max snippet must be greater than 0.")
+        if self.search_context_tokens <= 0:
+            raise ValueError("Search context tokens must be greater than 0.")
 
         if self.system_prompt_tokens == 0 and self.system_prompt:
             object.__setattr__(
@@ -112,6 +136,7 @@ class AppConfig:
     def from_env(cls) -> "AppConfig":
         defaults = cls()
         num_predict_env = os.getenv("OLLAMA_NUM_PREDICT")
+        num_gpu_env = os.getenv("OLLAMA_NUM_GPU")
         return cls(
             app_name=os.getenv("STARMENTAI_NAME", defaults.app_name),
             app_version=os.getenv("STARMENTAI_VERSION", defaults.app_version),
@@ -122,6 +147,7 @@ class AppConfig:
             top_p=float(os.getenv("OLLAMA_TOP_P", defaults.top_p)),
             num_ctx=int(os.getenv("OLLAMA_NUM_CTX", defaults.num_ctx)),
             num_thread=int(os.getenv("OLLAMA_NUM_THREAD", defaults.num_thread)),
+            num_gpu=int(num_gpu_env) if num_gpu_env else defaults.num_gpu,
             num_predict=int(num_predict_env) if num_predict_env else defaults.num_predict,
             chars_per_token=float(os.getenv("STARMENTAI_CHARS_PER_TOKEN", defaults.chars_per_token)),
             context_safety_margin=int(os.getenv("STARMENTAI_CONTEXT_SAFETY_MARGIN", defaults.context_safety_margin)),
@@ -135,6 +161,15 @@ class AppConfig:
             read_timeout=int(os.getenv("OLLAMA_READ_TIMEOUT", defaults.read_timeout)),
             max_history_messages=int(os.getenv("STARMENTAI_MAX_HISTORY", defaults.max_history_messages)),
             max_user_input_length=int(os.getenv("STARMENTAI_MAX_INPUT", defaults.max_user_input_length)),
+            enable_system_time=os.getenv("STARMENTAI_ENABLE_TIME", str(defaults.enable_system_time)).lower() in ("true", "1", "yes", "on"),
+            enable_web_search=os.getenv("STARMENTAI_ENABLE_SEARCH", str(defaults.enable_web_search)).lower() in ("true", "1", "yes", "on"),
+            search_provider=os.getenv("STARMENTAI_SEARCH_PROVIDER", defaults.search_provider),
+            search_timeout=float(os.getenv("STARMENTAI_SEARCH_TIMEOUT", defaults.search_timeout)),
+            search_max_results=int(os.getenv("STARMENTAI_SEARCH_MAX_RESULTS", defaults.search_max_results)),
+            search_max_snippet=int(os.getenv("STARMENTAI_SEARCH_MAX_SNIPPET", defaults.search_max_snippet)),
+            search_context_tokens=int(os.getenv("STARMENTAI_SEARCH_CONTEXT_TOKENS", defaults.search_context_tokens)),
+            time_format_24h=os.getenv("STARMENTAI_TIME_24H", str(defaults.time_format_24h)).lower() in ("true", "1", "yes", "on"),
+            default_timezone=os.getenv("STARMENTAI_DEFAULT_TZ", defaults.default_timezone),
         )
 
 
