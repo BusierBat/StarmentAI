@@ -104,13 +104,44 @@ Chờ quá trình khởi tạo hoàn tất.
 
 ### 5. Khởi động StarmentAI
 
-Chạy:
+Chạy file:
 
 ```text
 run.bat
 ```
 
-Nếu mọi thứ hoạt động bình thường, StarmentAI sẽ khởi động và sẵn sàng sử dụng.
+hoặc trực tiếp:
+
+```powershell
+python main.py
+```
+
+StarmentAI sẽ khởi động với giao diện TUI dạng terminal giống opencode:
+
+- Header bar: tên app, model, dung lượng context, version.
+- Vùng chat: message của bạn và StarmentAI phân biệt màu, phản hồi được render markdown.
+- Hộp input có viền phía dưới, streaming từng token khi model trả lời.
+- Footer gợi ý phím tắt.
+
+**Phím tắt:**
+
+- `Enter`: gửi tin nhắn
+- `Ctrl+Enter` / `Ctrl+J`: xuống dòng trong input
+- `↑` / `↓`: duyệt lịch sử tin nhắn (khi input một dòng)
+- `Ctrl+C` / `Ctrl+Q`: thoát
+
+**Lệnh trong chat:**
+
+- `/help`: hiển thị các lệnh
+- `/clear`: xóa lịch sử hội thoại
+- `/exit`: thoát
+
+**Chế độ khác:**
+
+```powershell
+python main.py --demo     # Chạy TUI với processor giả, không cần Ollama
+python main.py --plain    # Chạy giao diện terminal đơn giản như cũ
+```
 
 **Lưu ý:**
 

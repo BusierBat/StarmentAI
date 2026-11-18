@@ -2,8 +2,12 @@
 """
 StarmentAI - Main Application
 Terminal entry point.
+
+Mặc định chạy giao diện TUI dạng opencode (tui.py).
+Dùng --plain để chạy chế độ terminal cũ, --demo để chạy TUI không cần Ollama.
 """
 
+import argparse
 import sys
 
 from config import CONFIG
@@ -108,8 +112,8 @@ def process_input(user_input: str, processor: Processor) -> None:
         print_context_warning(processor)
 
 
-def run_cli() -> None:
-    """Classic line-based CLI loop."""
+def run_plain() -> None:
+    """Main application loop (plain terminal mode)."""
 
     print_banner()
 
@@ -163,26 +167,35 @@ def run_cli() -> None:
         print(f"\nApplication error: {exc}")
 
 
-def run() -> int:
-    """Launch the TUI interactively, otherwise fall back to the CLI."""
+def main() -> None:
+    parser = argparse.ArgumentParser(description=APP_NAME)
+    parser.add_argument(
+        "--plain",
+        action="store_true",
+        help="Dùng giao diện terminal đơn giản (không TUI)",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Chạy TUI dạng opencode với processor giả (không cần Ollama)",
+    )
+    args = parser.parse_args()
 
-    if sys.stdin.isatty() and sys.stdout.isatty():
-        try:
-            from tui import main as tui_main
+    if args.plain:
+        run_plain()
+        return
 
-        except Exception as exc:
-            print(
-                "Kh\u00f4ng th\u1ec3 kh\u1edfi ch\u1ea1y TUI "
-                f"({exc}); d\u00f9ng giao di\u1ec7n d\u00f2ng l\u1ec7nh."
-            )
-            run_cli()
-            return 0
+    try:
+        from tui import run_tui
+    except ImportError:
+        print(
+            "Thiếu thư viện textual. Cài bằng: pip install textual\n"
+            "Hoặc chạy chế độ cũ: python main.py --plain"
+        )
+        return
 
-        return tui_main()
-
-    run_cli()
-    return 0
+    run_tui(demo=args.demo)
 
 
 if __name__ == "__main__":
-    raise SystemExit(run())
+    main()
