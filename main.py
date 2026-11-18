@@ -108,8 +108,8 @@ def process_input(user_input: str, processor: Processor) -> None:
         print_context_warning(processor)
 
 
-def run() -> None:
-    """Main application loop."""
+def run_cli() -> None:
+    """Classic line-based CLI loop."""
 
     print_banner()
 
@@ -163,5 +163,26 @@ def run() -> None:
         print(f"\nApplication error: {exc}")
 
 
+def run() -> int:
+    """Launch the TUI interactively, otherwise fall back to the CLI."""
+
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            from tui import main as tui_main
+
+        except Exception as exc:
+            print(
+                "Kh\u00f4ng th\u1ec3 kh\u1edfi ch\u1ea1y TUI "
+                f"({exc}); d\u00f9ng giao di\u1ec7n d\u00f2ng l\u1ec7nh."
+            )
+            run_cli()
+            return 0
+
+        return tui_main()
+
+    run_cli()
+    return 0
+
+
 if __name__ == "__main__":
-    run()
+    raise SystemExit(run())
