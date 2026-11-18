@@ -14,4 +14,4 @@ if errorlevel 1 (
     if errorlevel 1 exit /b 1
 )
 
-ollama run starmentai
+python main.py

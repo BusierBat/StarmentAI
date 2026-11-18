@@ -2,8 +2,12 @@
 """
 StarmentAI - Main Application
 Terminal entry point.
+
+Mặc định chạy giao diện TUI dạng opencode (tui.py).
+Dùng --plain để chạy chế độ terminal cũ, --demo để chạy TUI không cần Ollama.
 """
 
+import argparse
 import sys
 
 from config import CONFIG
@@ -108,8 +112,8 @@ def process_input(user_input: str, processor: Processor) -> None:
         print_context_warning(processor)
 
 
-def run() -> None:
-    """Main application loop."""
+def run_plain() -> None:
+    """Main application loop (plain terminal mode)."""
 
     print_banner()
 
@@ -163,5 +167,35 @@ def run() -> None:
         print(f"\nApplication error: {exc}")
 
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description=APP_NAME)
+    parser.add_argument(
+        "--plain",
+        action="store_true",
+        help="Dùng giao diện terminal đơn giản (không TUI)",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Chạy TUI dạng opencode với processor giả (không cần Ollama)",
+    )
+    args = parser.parse_args()
+
+    if args.plain:
+        run_plain()
+        return
+
+    try:
+        from tui import run_tui
+    except ImportError:
+        print(
+            "Thiếu thư viện textual. Cài bằng: pip install textual\n"
+            "Hoặc chạy chế độ cũ: python main.py --plain"
+        )
+        return
+
+    run_tui(demo=args.demo)
+
+
 if __name__ == "__main__":
-    run()
+    main()
